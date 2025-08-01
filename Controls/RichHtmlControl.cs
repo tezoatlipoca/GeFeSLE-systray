@@ -40,32 +40,66 @@ namespace GeFeSLE.Controls
 
         protected override Size MeasureOverride(Size availableSize)
         {
-            // Ensure we don't exceed the available width
+            // Ensure we don't exceed the available width - be very strict about this
             var maxWidth = availableSize.Width;
             if (!double.IsInfinity(maxWidth) && _contentPanel != null)
             {
-                // Apply width constraint to all TextBlocks in the content panel
-                ApplyWidthConstraint(_contentPanel, maxWidth);
+                // Apply width constraint to all children recursively
+                ApplyStrictWidthConstraint(_contentPanel, maxWidth - 20); // Leave some margin
             }
             
-            return base.MeasureOverride(availableSize);
+            var result = base.MeasureOverride(availableSize);
+            
+            // Ensure we never exceed the available width
+            if (!double.IsInfinity(availableSize.Width))
+            {
+                result = result.WithWidth(Math.Min(result.Width, availableSize.Width));
+            }
+            
+            return result;
         }
 
-        private void ApplyWidthConstraint(Panel panel, double maxWidth)
+        private void ApplyStrictWidthConstraint(Panel panel, double maxWidth)
         {
             foreach (var child in panel.Children)
             {
+                // Set width constraints on all text blocks
                 if (child is TextBlock textBlock)
                 {
                     textBlock.MaxWidth = maxWidth;
+                    textBlock.TextWrapping = TextWrapping.Wrap;
+                    textBlock.HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch;
                 }
+                // Handle buttons (like links)
+                else if (child is Button button)
+                {
+                    button.MaxWidth = maxWidth;
+                    button.HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch;
+                    if (button.Content is TextBlock buttonText)
+                    {
+                        buttonText.MaxWidth = maxWidth - 10; // Account for button padding
+                        buttonText.TextWrapping = TextWrapping.Wrap;
+                    }
+                }
+                // Handle nested panels
                 else if (child is Panel childPanel)
                 {
-                    ApplyWidthConstraint(childPanel, maxWidth);
+                    childPanel.MaxWidth = maxWidth;
+                    ApplyStrictWidthConstraint(childPanel, maxWidth);
                 }
-                else if (child is Border border && border.Child is Panel borderPanel)
+                // Handle borders
+                else if (child is Border border)
                 {
-                    ApplyWidthConstraint(borderPanel, maxWidth);
+                    border.MaxWidth = maxWidth;
+                    if (border.Child is Panel borderPanel)
+                    {
+                        ApplyStrictWidthConstraint(borderPanel, maxWidth - 10); // Account for border
+                    }
+                }
+                // Handle any other control
+                else if (child is Control control)
+                {
+                    control.MaxWidth = maxWidth;
                 }
             }
         }
@@ -139,7 +173,7 @@ namespace GeFeSLE.Controls
                                 TextWrapping = TextWrapping.Wrap,
                                 Foreground = Brushes.White,
                                 HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch,
-                                MaxWidth = double.PositiveInfinity // Let it use available width
+                                MaxWidth = double.PositiveInfinity // Will be constrained by MeasureOverride
                             };
                             container.Children.Add(textBlock);
                         }
@@ -216,16 +250,25 @@ namespace GeFeSLE.Controls
 
                 case "a":
                     var href = element.GetAttributeValue("href", "");
+                    var linkText = element.InnerText?.Trim() ?? href;
+                    
                     var link = new Button
                     {
-                        Content = element.InnerText?.Trim() ?? href,
                         Background = Brushes.Transparent,
                         BorderThickness = new Thickness(0),
                         Foreground = Brushes.LightBlue,
-                        HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Left,
+                        HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch,
                         HorizontalContentAlignment = Avalonia.Layout.HorizontalAlignment.Left,
                         Padding = new Thickness(0),
-                        Cursor = new Avalonia.Input.Cursor(Avalonia.Input.StandardCursorType.Hand)
+                        Cursor = new Avalonia.Input.Cursor(Avalonia.Input.StandardCursorType.Hand),
+                        Content = new TextBlock
+                        {
+                            Text = linkText,
+                            TextWrapping = TextWrapping.Wrap,
+                            Foreground = Brushes.LightBlue,
+                            TextDecorations = TextDecorations.Underline,
+                            HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch
+                        }
                     };
                     
                     if (!string.IsNullOrEmpty(href))

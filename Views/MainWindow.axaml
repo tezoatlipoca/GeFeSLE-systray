@@ -91,11 +91,13 @@
                     
                     <!-- Items list with full height expansion -->
                     <ScrollViewer IsVisible="{Binding !IsLoadingItems}"
-                                  HorizontalScrollBarVisibility="Auto" 
+                                  HorizontalScrollBarVisibility="Disabled" 
                                   VerticalScrollBarVisibility="Auto">
                         <ListBox ItemsSource="{Binding ListItems}" 
                                  Background="Transparent" 
-                                 BorderThickness="0">
+                                 BorderThickness="0"
+                                 HorizontalAlignment="Stretch"
+                                 ScrollViewer.HorizontalScrollBarVisibility="Disabled">
                             <ListBox.ItemTemplate>
                                 <DataTemplate>
                                     <!-- Enhanced item template with HTML support and expansion -->
@@ -130,7 +132,7 @@
                                                             Background="Transparent"
                                                             BorderThickness="0"
                                                             Padding="0"
-                                                            HorizontalAlignment="Left"
+                                                            HorizontalAlignment="Stretch"
                                                             HorizontalContentAlignment="Left"
                                                             Cursor="Hand"
                                                             Margin="0,0,0,2">
@@ -138,7 +140,7 @@
                                                                    FontWeight="SemiBold"
                                                                    Foreground="LightBlue"
                                                                    TextDecorations="Underline"
-                                                                   TextTrimming="CharacterEllipsis"/>
+                                                                   TextWrapping="Wrap"/>
                                                     </Button>
                                                     
                                                     <!-- Item name - non-clickable version -->
@@ -146,7 +148,7 @@
                                                                Text="{Binding Name, FallbackValue='[No Name]', TargetNullValue='[No Name]'}" 
                                                                FontWeight="SemiBold"
                                                                Foreground="White"
-                                                               TextTrimming="CharacterEllipsis"
+                                                               TextWrapping="Wrap"
                                                                Margin="0,0,0,2"/>
                                                     
                                                     <!-- Tags -->
