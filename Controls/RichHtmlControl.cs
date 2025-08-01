@@ -40,14 +40,7 @@ namespace GeFeSLE.Controls
 
         protected override Size MeasureOverride(Size availableSize)
         {
-            // Ensure we don't exceed the available width - be very strict about this
-            var maxWidth = availableSize.Width;
-            if (!double.IsInfinity(maxWidth) && _contentPanel != null)
-            {
-                // Apply width constraint to all children recursively
-                ApplyStrictWidthConstraint(_contentPanel, maxWidth - 20); // Leave some margin
-            }
-            
+            // Simple approach - just let the base handle measurement with ClipToBounds=true
             var result = base.MeasureOverride(availableSize);
             
             // Ensure we never exceed the available width
@@ -57,51 +50,6 @@ namespace GeFeSLE.Controls
             }
             
             return result;
-        }
-
-        private void ApplyStrictWidthConstraint(Panel panel, double maxWidth)
-        {
-            foreach (var child in panel.Children)
-            {
-                // Set width constraints on all text blocks
-                if (child is TextBlock textBlock)
-                {
-                    textBlock.MaxWidth = maxWidth;
-                    textBlock.TextWrapping = TextWrapping.Wrap;
-                    textBlock.HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch;
-                }
-                // Handle buttons (like links)
-                else if (child is Button button)
-                {
-                    button.MaxWidth = maxWidth;
-                    button.HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch;
-                    if (button.Content is TextBlock buttonText)
-                    {
-                        buttonText.MaxWidth = maxWidth - 10; // Account for button padding
-                        buttonText.TextWrapping = TextWrapping.Wrap;
-                    }
-                }
-                // Handle nested panels
-                else if (child is Panel childPanel)
-                {
-                    childPanel.MaxWidth = maxWidth;
-                    ApplyStrictWidthConstraint(childPanel, maxWidth);
-                }
-                // Handle borders
-                else if (child is Border border)
-                {
-                    border.MaxWidth = maxWidth;
-                    if (border.Child is Panel borderPanel)
-                    {
-                        ApplyStrictWidthConstraint(borderPanel, maxWidth - 10); // Account for border
-                    }
-                }
-                // Handle any other control
-                else if (child is Control control)
-                {
-                    control.MaxWidth = maxWidth;
-                }
-            }
         }
 
         private void InitializeComponent()

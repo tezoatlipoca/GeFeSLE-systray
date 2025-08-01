@@ -38,6 +38,9 @@ public partial class MainWindowViewModel : ViewModelBase
     
     [ObservableProperty]
     private bool hasListMetadata = false;
+    
+    // Track the currently expanded item to prevent multiple expansions
+    private GeListItem? _currentlyExpandedItem = null;
 
     public string Greeting { get; } = "Welcome to Avalonia!";
     public SettingsWindowViewModel SettingsViewModel { get; }
@@ -157,6 +160,7 @@ public partial class MainWindowViewModel : ViewModelBase
             var items = await _apiClient.GetListItemsAsync(listId);
             
             ListItems.Clear();
+            _currentlyExpandedItem = null; // Reset expansion tracking when loading new list
             if (items != null && items.Count > 0)
             {
                 // Only show visible items and ensure no null values
@@ -181,6 +185,9 @@ public partial class MainWindowViewModel : ViewModelBase
                         
                         // Clean up any null tags
                         item.Tags = item.Tags.Where(tag => !string.IsNullOrEmpty(tag)).ToList();
+                        
+                        // Ensure item starts collapsed
+                        item.IsExpanded = false;
                         
                         ListItems.Add(item);
                     }
@@ -300,8 +307,27 @@ public partial class MainWindowViewModel : ViewModelBase
     {
         if (item != null)
         {
-            item.IsExpanded = !item.IsExpanded;
-            DBg.d(LogLevel.Debug, $"Toggled item {item.Id} expansion to {item.IsExpanded}");
+            // If this item is already expanded, just collapse it
+            if (item.IsExpanded)
+            {
+                item.IsExpanded = false;
+                _currentlyExpandedItem = null;
+                DBg.d(LogLevel.Debug, $"Collapsed item {item.Id}");
+            }
+            else
+            {
+                // First, collapse the currently expanded item if any
+                if (_currentlyExpandedItem != null && _currentlyExpandedItem.IsExpanded)
+                {
+                    _currentlyExpandedItem.IsExpanded = false;
+                    DBg.d(LogLevel.Debug, $"Auto-collapsed item {_currentlyExpandedItem.Id} to allow expansion of item {item.Id}");
+                }
+                
+                // Now expand the selected item
+                item.IsExpanded = true;
+                _currentlyExpandedItem = item;
+                DBg.d(LogLevel.Debug, $"Expanded item {item.Id}");
+            }
         }
     }
     
