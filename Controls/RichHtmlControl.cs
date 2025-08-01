@@ -77,33 +77,32 @@ namespace GeFeSLE.Controls
         {
             if (_contentPanel == null) return;
 
-            Dispatcher.UIThread.Post(() =>
+            // Clear existing content immediately on UI thread
+            _contentPanel.Children.Clear();
+
+            if (string.IsNullOrWhiteSpace(HtmlContent))
+                return;
+
+            try
             {
-                _contentPanel.Children.Clear();
+                var htmlDoc = new HtmlDocument();
+                htmlDoc.LoadHtml(HtmlContent);
 
-                if (string.IsNullOrWhiteSpace(HtmlContent))
-                    return;
-
-                try
+                // Process HTML content directly on UI thread to avoid threading issues
+                ProcessHtmlNode(htmlDoc.DocumentNode, _contentPanel);
+            }
+            catch (Exception ex)
+            {
+                // Fallback to plain text if HTML parsing fails
+                var errorText = new TextBlock
                 {
-                    var htmlDoc = new HtmlDocument();
-                    htmlDoc.LoadHtml(HtmlContent);
-
-                    ProcessHtmlNode(htmlDoc.DocumentNode, _contentPanel);
-                }
-                catch (Exception ex)
-                {
-                    // Fallback to plain text if HTML parsing fails
-                    var errorText = new TextBlock
-                    {
-                        Text = $"Error parsing HTML: {ex.Message}\n\nRaw content:\n{HtmlContent}",
-                        Foreground = Brushes.Red,
-                        TextWrapping = TextWrapping.Wrap,
-                        HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch
-                    };
-                    _contentPanel.Children.Add(errorText);
-                }
-            });
+                    Text = $"Error parsing HTML: {ex.Message}\n\nRaw content:\n{HtmlContent}",
+                    Foreground = Brushes.Red,
+                    TextWrapping = TextWrapping.Wrap,
+                    HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch
+                };
+                _contentPanel.Children.Add(errorText);
+            }
         }
 
         private void ProcessHtmlNode(HtmlNode node, Panel container)
@@ -439,7 +438,57 @@ namespace GeFeSLE.Controls
             }
         }
 
+        private static readonly object _imageLoadingLock = new object();
+        private static readonly HashSet<string> _currentlyLoadingImages = new();
+
         private void CreateImageControl(Panel container, string imageUrl, string altText)
+        {
+            // Prevent multiple simultaneous loads of the same image during rapid UI updates
+            lock (_imageLoadingLock)
+            {
+                if (_currentlyLoadingImages.Contains(imageUrl))
+                {
+                    // Image is already being loaded, skip this request to prevent crashes
+                    return;
+                }
+                _currentlyLoadingImages.Add(imageUrl);
+            }
+
+            // Ensure we're on UI thread but avoid recursive posting
+            if (!Dispatcher.UIThread.CheckAccess())
+            {
+                // If we're not on UI thread, safely defer this
+                Dispatcher.UIThread.Post(() =>
+                {
+                    try
+                    {
+                        CreateImageControlInternal(container, imageUrl, altText);
+                    }
+                    finally
+                    {
+                        lock (_imageLoadingLock)
+                        {
+                            _currentlyLoadingImages.Remove(imageUrl);
+                        }
+                    }
+                }, DispatcherPriority.Background);
+                return;
+            }
+
+            try
+            {
+                CreateImageControlInternal(container, imageUrl, altText);
+            }
+            finally
+            {
+                lock (_imageLoadingLock)
+                {
+                    _currentlyLoadingImages.Remove(imageUrl);
+                }
+            }
+        }
+
+        private void CreateImageControlInternal(Panel container, string imageUrl, string altText)
         {
             var imageContainer = new StackPanel
             {
@@ -495,10 +544,11 @@ namespace GeFeSLE.Controls
             imageContainer.Children.Add(placeholderPanel);
             imageContainer.Children.Add(image);
 
-            // Start loading immediately but don't block UI
-            LoadImageAsync(image, imageUrl, altText, imageContainer, placeholderPanel);
-
+            // Add to container first, then start loading
             container.Children.Add(imageContainer);
+
+            // Start loading asynchronously but don't block UI
+            _ = Task.Run(() => LoadImageAsync(image, imageUrl, altText, imageContainer, placeholderPanel));
         }
 
         private async void LoadImageAsync(Image imageControl, string imageUrl, string altText, Panel imageContainer, Panel placeholderPanel)

@@ -40,9 +40,6 @@ public partial class MainWindowViewModel : ViewModelBase
     [ObservableProperty]
     private bool hasListMetadata = false;
     
-    // Track the currently expanded item to prevent multiple expansions
-    private GeListItem? _currentlyExpandedItem = null;
-
     // Event for scroll position preservation
     public event Action<GeListItem>? ItemExpansionChanged;
 
@@ -164,7 +161,6 @@ public partial class MainWindowViewModel : ViewModelBase
             var items = await _apiClient.GetListItemsAsync(listId);
             
             ListItems.Clear();
-            _currentlyExpandedItem = null; // Reset expansion tracking when loading new list
             if (items != null && items.Count > 0)
             {
                 // Only show visible items and ensure no null values
@@ -311,27 +307,10 @@ public partial class MainWindowViewModel : ViewModelBase
     {
         if (item != null)
         {
-            // If this item is already expanded, just collapse it
-            if (item.IsExpanded)
-            {
-                item.IsExpanded = false;
-                _currentlyExpandedItem = null;
-                DBg.d(LogLevel.Debug, $"Collapsed item {item.Id}");
-            }
-            else
-            {
-                // First, collapse the currently expanded item if any
-                if (_currentlyExpandedItem != null && _currentlyExpandedItem.IsExpanded)
-                {
-                    _currentlyExpandedItem.IsExpanded = false;
-                    DBg.d(LogLevel.Debug, $"Auto-collapsed item {_currentlyExpandedItem.Id} to allow expansion of item {item.Id}");
-                }
-                
-                // Now expand the selected item
-                item.IsExpanded = true;
-                _currentlyExpandedItem = item;
-                DBg.d(LogLevel.Debug, $"Expanded item {item.Id}");
-            }
+            // Simply toggle the expansion state - no auto-collapse logic
+            item.IsExpanded = !item.IsExpanded;
+            
+            DBg.d(LogLevel.Debug, $"{(item.IsExpanded ? "Expanded" : "Collapsed")} item {item.Id}");
             
             // Notify the view to handle scroll position preservation
             // Use Dispatcher to ensure UI has updated before scroll adjustment

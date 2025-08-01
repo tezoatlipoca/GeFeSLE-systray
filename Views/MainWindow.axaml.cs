@@ -165,88 +165,50 @@ public partial class MainWindow : Window
 
     private void OnItemExpansionChanged(GeListItem item)
     {
-        // Find the ScrollViewer by name in the XAML
+        // With virtualization, we don't need complex scroll management
+        // The virtual list will handle most layout efficiently
+        // Just ensure the expanded item stays reasonably visible
+        
         var scrollViewer = this.FindControl<ScrollViewer>("ItemsScrollViewer");
-        
-        // If not found by name, try to find it in the logical tree
-        if (scrollViewer == null)
-        {
-            scrollViewer = this.GetLogicalDescendants().OfType<ScrollViewer>().FirstOrDefault();
-        }
-        
         if (scrollViewer == null || DataContext is not MainWindowViewModel viewModel) return;
 
-        // Find the ListBox containing the items
-        var listBox = scrollViewer.GetLogicalDescendants().OfType<ListBox>().FirstOrDefault();
-        if (listBox == null) return;
-
-        try
+        // Light touch: only adjust scroll if item expansion pushes content way out of view
+        Avalonia.Threading.Dispatcher.UIThread.Post(async () =>
         {
-            // Find the index of the item that was expanded
-            var itemIndex = viewModel.ListItems.IndexOf(item);
-            if (itemIndex < 0) return;
-
-            // Store the current scroll position and item information before UI updates
-            var currentScrollOffset = scrollViewer.Offset.Y;
-            var viewportHeight = scrollViewer.Viewport.Height;
-            
-            // Schedule the scroll adjustment after the UI has updated
-            Avalonia.Threading.Dispatcher.UIThread.Post(async () =>
+            try
             {
-                // Give the UI time to fully update the layout
-                await Task.Delay(50);
+                await Task.Delay(50); // Minimal delay for layout
                 
-                // Re-get the container after layout update
-                var container = listBox.ContainerFromIndex(itemIndex);
-                if (container is ListBoxItem listBoxItem)
+                var listBox = scrollViewer.GetLogicalDescendants().OfType<ListBox>().FirstOrDefault();
+                if (listBox == null) return;
+                
+                var itemIndex = viewModel.ListItems.IndexOf(item);
+                if (itemIndex < 0) return;
+
+                // Only scroll if the item is completely out of view and was just expanded
+                if (item.IsExpanded)
                 {
-                    // Get the updated bounds after expansion/collapse
-                    var itemBounds = listBoxItem.Bounds;
-                    var itemTopInScrollContent = itemBounds.Y;
-                    
-                    // Calculate where the item's top was relative to the viewport before the change
-                    var itemTopInViewportBefore = itemTopInScrollContent - currentScrollOffset;
-                    
-                    if (item.IsExpanded)
+                    var container = listBox.ContainerFromIndex(itemIndex);
+                    if (container is ListBoxItem listBoxItem)
                     {
-                        // When expanding: keep the item header at the same viewport position
-                        // This prevents the item from jumping around during expansion
-                        var targetScrollOffset = Math.Max(0, itemTopInScrollContent - itemTopInViewportBefore);
+                        var itemBounds = listBoxItem.Bounds;
+                        var viewportTop = scrollViewer.Offset.Y;
+                        var viewportHeight = scrollViewer.Viewport.Height;
                         
-                        // Ensure we don't scroll past the content
-                        var maxScrollOffset = Math.Max(0, scrollViewer.Extent.Height - viewportHeight);
-                        targetScrollOffset = Math.Min(targetScrollOffset, maxScrollOffset);
-                        
-                        scrollViewer.Offset = scrollViewer.Offset.WithY(targetScrollOffset);
-                    }
-                    else
-                    {
-                        // When collapsing: keep the item visible but don't jump around
-                        // Only adjust if the item would be out of view
-                        var itemBottomInViewport = itemTopInViewportBefore + itemBounds.Height;
-                        
-                        if (itemTopInViewportBefore < 0)
+                        // If item header is way above viewport, scroll to show it
+                        if (itemBounds.Y < viewportTop - 50)
                         {
-                            // Item top is above viewport, scroll to show it
-                            var targetScrollOffset = Math.Max(0, itemTopInScrollContent - 20); // 20px padding
+                            var targetScrollOffset = Math.Max(0, itemBounds.Y - 20);
                             scrollViewer.Offset = scrollViewer.Offset.WithY(targetScrollOffset);
                         }
-                        else if (itemBottomInViewport > viewportHeight)
-                        {
-                            // Item bottom is below viewport, scroll to show it
-                            var targetScrollOffset = Math.Max(0, itemTopInScrollContent + itemBounds.Height - viewportHeight + 20);
-                            scrollViewer.Offset = scrollViewer.Offset.WithY(targetScrollOffset);
-                        }
-                        // If item is already fully visible, don't adjust scroll position
                     }
                 }
-            }, Avalonia.Threading.DispatcherPriority.Background);
-        }
-        catch
-        {
-            // Ignore any errors in scroll position calculation
-            // This is a UI enhancement, not critical functionality
-        }
+            }
+            catch
+            {
+                // Ignore scroll adjustment errors
+            }
+        }, Avalonia.Threading.DispatcherPriority.Background);
     }
 
     protected override void OnKeyDown(KeyEventArgs e)
