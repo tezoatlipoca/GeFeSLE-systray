@@ -410,40 +410,63 @@ namespace GeFeSLE.Controls
             {
                 Orientation = Avalonia.Layout.Orientation.Vertical,
                 Margin = new Thickness(0, 8, 0, 8),
-                HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch
+                HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch,
+                MinHeight = 24 // Reserve space to prevent layout jumping
             };
 
-            // Create image control
+            // Create image control (hidden initially)
             var image = new Image
             {
                 Stretch = Stretch.Uniform,
                 StretchDirection = StretchDirection.DownOnly,
                 HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Left,
                 VerticalAlignment = Avalonia.Layout.VerticalAlignment.Top,
-                // Max width will be constrained by parent, max height to 1/2 of reasonable list height
-                MaxHeight = 300, // Roughly 1/2 of a typical window height for list content
-                Margin = new Thickness(0, 0, 0, 4)
+                MaxHeight = 300,
+                Margin = new Thickness(0, 0, 0, 4),
+                IsVisible = false // Hidden until loaded
             };
 
-            // Create a placeholder while loading
-            var loadingText = new TextBlock
+            // Create a stable placeholder that maintains consistent height
+            var placeholderPanel = new StackPanel
             {
-                Text = $"Loading image: {altText}...",
-                Foreground = Brushes.Gray,
-                FontStyle = FontStyle.Italic,
-                TextWrapping = TextWrapping.Wrap,
+                Orientation = Avalonia.Layout.Orientation.Horizontal,
+                MinHeight = 20,
                 HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch
             };
 
-            imageContainer.Children.Add(loadingText);
+            var loadingIcon = new TextBlock
+            {
+                Text = "⏳",
+                FontSize = 14,
+                VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
+                Margin = new Thickness(0, 0, 8, 0)
+            };
 
-            // Load image asynchronously
-            LoadImageAsync(image, imageUrl, altText, imageContainer, loadingText);
+            var loadingText = new TextBlock
+            {
+                Text = $"Loading: {(string.IsNullOrEmpty(altText) || altText == "Image" ? "image" : altText)}",
+                Foreground = Brushes.Gray,
+                FontSize = 11,
+                FontStyle = FontStyle.Italic,
+                TextWrapping = TextWrapping.Wrap,
+                VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
+                HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch
+            };
+
+            placeholderPanel.Children.Add(loadingIcon);
+            placeholderPanel.Children.Add(loadingText);
+
+            // Add both placeholder and image to container
+            imageContainer.Children.Add(placeholderPanel);
+            imageContainer.Children.Add(image);
+
+            // Start loading immediately but don't block UI
+            LoadImageAsync(image, imageUrl, altText, imageContainer, placeholderPanel);
 
             container.Children.Add(imageContainer);
         }
 
-        private async void LoadImageAsync(Image imageControl, string imageUrl, string altText, Panel imageContainer, TextBlock loadingText)
+        private async void LoadImageAsync(Image imageControl, string imageUrl, string altText, Panel imageContainer, Panel placeholderPanel)
         {
             try
             {
@@ -461,9 +484,9 @@ namespace GeFeSLE.Controls
                         
                         imageControl.Source = bitmap;
                         
-                        // Remove loading text and add the image
-                        imageContainer.Children.Remove(loadingText);
-                        imageContainer.Children.Insert(0, imageControl);
+                        // Hide placeholder and show image
+                        placeholderPanel.IsVisible = false;
+                        imageControl.IsVisible = true;
                         
                         // Add alt text as caption if provided
                         if (!string.IsNullOrEmpty(altText) && altText != "Image")
@@ -483,7 +506,7 @@ namespace GeFeSLE.Controls
                     }
                     catch (Exception ex)
                     {
-                        ShowBrokenImage(imageContainer, loadingText, imageUrl, altText, $"Failed to decode image: {ex.Message}");
+                        ShowBrokenImage(imageContainer, placeholderPanel, imageUrl, altText, $"Failed to decode image: {ex.Message}");
                     }
                 });
             }
@@ -491,21 +514,22 @@ namespace GeFeSLE.Controls
             {
                 await Dispatcher.UIThread.InvokeAsync(() =>
                 {
-                    ShowBrokenImage(imageContainer, loadingText, imageUrl, altText, $"Failed to load image: {ex.Message}");
+                    ShowBrokenImage(imageContainer, placeholderPanel, imageUrl, altText, $"Failed to load image: {ex.Message}");
                 });
             }
         }
 
-        private void ShowBrokenImage(Panel imageContainer, TextBlock loadingText, string imageUrl, string altText, string errorMessage)
+        private void ShowBrokenImage(Panel imageContainer, Panel placeholderPanel, string imageUrl, string altText, string errorMessage)
         {
-            // Remove loading text
-            imageContainer.Children.Remove(loadingText);
+            // Hide the loading placeholder
+            placeholderPanel.IsVisible = false;
             
             // Create broken image indicator
             var brokenImagePanel = new StackPanel
             {
                 Orientation = Avalonia.Layout.Orientation.Horizontal,
-                Margin = new Thickness(0, 4, 0, 4)
+                Margin = new Thickness(0, 4, 0, 4),
+                MinHeight = 20 // Maintain consistent height
             };
 
             // Broken image icon (using Unicode)
@@ -528,19 +552,21 @@ namespace GeFeSLE.Controls
                 Text = $"[Broken Image: {altText}]",
                 Foreground = Brushes.Orange,
                 FontWeight = FontWeight.Bold,
-                TextWrapping = TextWrapping.Wrap
+                TextWrapping = TextWrapping.Wrap,
+                FontSize = 11
             };
 
             var urlText = new Button
             {
-                Content = imageUrl,
+                Content = imageUrl.Length > 50 ? imageUrl.Substring(0, 47) + "..." : imageUrl,
                 Background = Brushes.Transparent,
                 BorderThickness = new Thickness(0),
                 Foreground = Brushes.LightBlue,
                 HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Left,
                 HorizontalContentAlignment = Avalonia.Layout.HorizontalAlignment.Left,
                 Padding = new Thickness(0),
-                Cursor = new Avalonia.Input.Cursor(Avalonia.Input.StandardCursorType.Hand)
+                Cursor = new Avalonia.Input.Cursor(Avalonia.Input.StandardCursorType.Hand),
+                FontSize = 10
             };
 
             urlText.Click += (s, e) => OpenUrl(imageUrl);
@@ -549,7 +575,7 @@ namespace GeFeSLE.Controls
             {
                 Text = errorMessage,
                 Foreground = Brushes.Gray,
-                FontSize = 10,
+                FontSize = 9,
                 FontStyle = FontStyle.Italic,
                 TextWrapping = TextWrapping.Wrap,
                 Margin = new Thickness(0, 2, 0, 0)
@@ -562,7 +588,16 @@ namespace GeFeSLE.Controls
             brokenImagePanel.Children.Add(brokenIcon);
             brokenImagePanel.Children.Add(imageInfo);
 
-            imageContainer.Children.Add(brokenImagePanel);
+            // Replace the placeholder with the broken image display
+            var placeholderIndex = imageContainer.Children.IndexOf(placeholderPanel);
+            if (placeholderIndex >= 0)
+            {
+                imageContainer.Children[placeholderIndex] = brokenImagePanel;
+            }
+            else
+            {
+                imageContainer.Children.Add(brokenImagePanel);
+            }
         }
 
         private void ProcessTextWithImages(Panel container, string text)
