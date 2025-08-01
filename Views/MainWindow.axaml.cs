@@ -9,6 +9,8 @@ using GeFeSLE.Services;
 using GeFeSLE.ViewModels;
 using GeFeSLE.Models;
 using Avalonia.LogicalTree;
+using Avalonia.VisualTree;
+using Avalonia.Threading;
 using System.Linq;
 
 namespace GeFeSLE.Views;
@@ -18,6 +20,10 @@ public partial class MainWindow : Window
     private readonly SettingsService _settingsService;
     private readonly HotkeyService _hotkeyService;
     private bool _isInitialized = false;
+    
+    // For scroll position preservation during item expansion/collapse
+    private GeListItem? _lastToggledItem;
+    private Point _lastCursorPosition;
 
     public MainWindow(MainWindowViewModel viewModel, SettingsService settingsService, HotkeyService hotkeyService)
     {
@@ -29,6 +35,9 @@ public partial class MainWindow : Window
         
         // Set up scroll position preservation
         viewModel.ItemExpansionChanged += OnItemExpansionChanged;
+        
+        // Track cursor position for scroll preservation
+        PointerMoved += OnPointerMoved;
         
         // Set up hotkey service
         _hotkeyService.SetToggleWindowAction(ToggleWindowVisibility);
@@ -165,8 +174,101 @@ public partial class MainWindow : Window
 
     private void OnItemExpansionChanged(GeListItem item)
     {
-        // No scroll position management needed with preloaded images and full rendering
-        // All images are cached and loaded before the list is rendered, eliminating layout jumping
+        // Preserve scroll position to keep the toggled item's header under the cursor
+        PreserveScrollPositionForItem(item);
+    }
+
+    private void OnPointerMoved(object? sender, PointerEventArgs e)
+    {
+        // Track cursor position for potential scroll preservation
+        _lastCursorPosition = e.GetPosition(this);
+    }
+
+    private async void PreserveScrollPositionForItem(GeListItem toggledItem)
+    {
+        if (toggledItem == null) return;
+
+        try
+        {
+            var scrollViewer = this.FindControl<ScrollViewer>("ItemsScrollViewer");
+            var listBox = this.GetVisualDescendants().OfType<ListBox>().FirstOrDefault();
+            
+            if (scrollViewer == null || listBox == null) return;
+
+            // Store reference and initial position
+            _lastToggledItem = toggledItem;
+            var initialScrollY = scrollViewer.Offset.Y;
+
+            // Wait for the layout to update after expansion/collapse
+            await Task.Delay(150); // Give more time for layout to settle
+
+            // Find the container for the toggled item
+            var itemContainer = FindItemContainer(listBox, toggledItem);
+            if (itemContainer == null) return;
+
+            // Get the current position of the item container
+            var containerBounds = itemContainer.Bounds;
+            var scrollViewerBounds = scrollViewer.Bounds;
+
+            // Calculate the top of the item relative to the scroll viewer viewport
+            var itemTop = itemContainer.TranslatePoint(new Point(0, 0), scrollViewer);
+            if (!itemTop.HasValue) return;
+
+            var currentItemTopInViewport = itemTop.Value.Y - scrollViewer.Offset.Y;
+
+            // If the item header has moved significantly or is outside comfortable viewing area,
+            // adjust scroll to keep it in a good position
+            var viewportHeight = scrollViewer.Viewport.Height;
+            var targetPositionInViewport = Math.Min(viewportHeight * 0.3, 100); // 30% down or 100px max
+
+            // Only adjust if the item moved too much or is not optimally positioned
+            if (currentItemTopInViewport < 0 || 
+                currentItemTopInViewport > viewportHeight * 0.7 ||
+                Math.Abs(currentItemTopInViewport - targetPositionInViewport) > 50)
+            {
+                var desiredScrollY = itemTop.Value.Y - targetPositionInViewport;
+                
+                // Clamp to valid scroll range
+                var maxScroll = Math.Max(0, scrollViewer.ScrollBarMaximum.Y);
+                var newScrollY = Math.Max(0, Math.Min(maxScroll, desiredScrollY));
+
+                // Apply smooth scroll adjustment
+                scrollViewer.Offset = scrollViewer.Offset.WithY(newScrollY);
+                
+                DBg.d(LogLevel.Debug, $"Adjusted scroll position for item {toggledItem.Id}: {initialScrollY:F1} -> {newScrollY:F1}px");
+            }
+            else
+            {
+                DBg.d(LogLevel.Debug, $"Item {toggledItem.Id} header position is good, no scroll adjustment needed");
+            }
+        }
+        catch (Exception ex)
+        {
+            DBg.d(LogLevel.Warning, $"Failed to preserve scroll position: {ex.Message}");
+        }
+    }
+
+    private Control? FindItemContainer(ListBox listBox, GeListItem item)
+    {
+        try
+        {
+            // Find all ListBoxItem containers and check their DataContext
+            var containers = listBox.GetVisualDescendants().OfType<ListBoxItem>();
+            
+            foreach (var container in containers)
+            {
+                if (container.DataContext == item)
+                {
+                    return container;
+                }
+            }
+
+            return null;
+        }
+        catch (Exception)
+        {
+            return null;
+        }
     }
 
     protected override void OnKeyDown(KeyEventArgs e)

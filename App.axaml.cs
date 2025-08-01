@@ -49,6 +49,10 @@ public partial class App : Application
             
             if (_settingsService == null || _apiClient == null || _hotkeyService == null || _signalService == null || _imageCacheService == null)
                 throw new InvalidOperationException("Services not initialized");
+            
+            // Set the static reference for RichHtmlControl to use
+            GeFeSLE.Controls.RichHtmlControl.ImageCache = _imageCacheService;
+            
             _mainWindow = new MainWindow(new MainWindowViewModel(_settingsService, _apiClient, _hotkeyService, _imageCacheService), _settingsService, _hotkeyService)
             {
                 WindowStartupLocation = WindowStartupLocation.Manual, // We'll handle positioning ourselves
