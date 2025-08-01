@@ -99,12 +99,6 @@
                                  BorderThickness="0"
                                  HorizontalAlignment="Stretch"
                                  ScrollViewer.HorizontalScrollBarVisibility="Disabled">
-                            <!-- Enable virtualization to only render visible items -->
-                            <ListBox.ItemsPanel>
-                                <ItemsPanelTemplate>
-                                    <VirtualizingStackPanel Orientation="Vertical"/>
-                                </ItemsPanelTemplate>
-                            </ListBox.ItemsPanel>
                             <ListBox.ItemTemplate>
                                 <DataTemplate>
                                     <!-- Enhanced item template with HTML support and expansion -->

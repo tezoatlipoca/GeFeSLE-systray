@@ -165,50 +165,8 @@ public partial class MainWindow : Window
 
     private void OnItemExpansionChanged(GeListItem item)
     {
-        // With virtualization, we don't need complex scroll management
-        // The virtual list will handle most layout efficiently
-        // Just ensure the expanded item stays reasonably visible
-        
-        var scrollViewer = this.FindControl<ScrollViewer>("ItemsScrollViewer");
-        if (scrollViewer == null || DataContext is not MainWindowViewModel viewModel) return;
-
-        // Light touch: only adjust scroll if item expansion pushes content way out of view
-        Avalonia.Threading.Dispatcher.UIThread.Post(async () =>
-        {
-            try
-            {
-                await Task.Delay(50); // Minimal delay for layout
-                
-                var listBox = scrollViewer.GetLogicalDescendants().OfType<ListBox>().FirstOrDefault();
-                if (listBox == null) return;
-                
-                var itemIndex = viewModel.ListItems.IndexOf(item);
-                if (itemIndex < 0) return;
-
-                // Only scroll if the item is completely out of view and was just expanded
-                if (item.IsExpanded)
-                {
-                    var container = listBox.ContainerFromIndex(itemIndex);
-                    if (container is ListBoxItem listBoxItem)
-                    {
-                        var itemBounds = listBoxItem.Bounds;
-                        var viewportTop = scrollViewer.Offset.Y;
-                        var viewportHeight = scrollViewer.Viewport.Height;
-                        
-                        // If item header is way above viewport, scroll to show it
-                        if (itemBounds.Y < viewportTop - 50)
-                        {
-                            var targetScrollOffset = Math.Max(0, itemBounds.Y - 20);
-                            scrollViewer.Offset = scrollViewer.Offset.WithY(targetScrollOffset);
-                        }
-                    }
-                }
-            }
-            catch
-            {
-                // Ignore scroll adjustment errors
-            }
-        }, Avalonia.Threading.DispatcherPriority.Background);
+        // No scroll position management needed with preloaded images and full rendering
+        // All images are cached and loaded before the list is rendered, eliminating layout jumping
     }
 
     protected override void OnKeyDown(KeyEventArgs e)

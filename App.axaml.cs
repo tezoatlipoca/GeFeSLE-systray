@@ -11,6 +11,7 @@ using System;
 using System.ComponentModel;
 using System.Runtime.InteropServices;
 using GeFeSLE.Services;
+using GeFeSLE.Controls;
 
 namespace GeFeSLE;
 
@@ -22,6 +23,7 @@ public partial class App : Application
     private GeFeSLEApiClient? _apiClient;
     private HotkeyService? _hotkeyService;
     private UnixSignalService? _signalService;
+    private ImageCacheService? _imageCacheService;
     // SettingsWindow removed; now part of MainWindow as tab
 
     public override void Initialize()
@@ -31,6 +33,10 @@ public partial class App : Application
         _apiClient = new GeFeSLEApiClient(new System.Net.Http.HttpClient());
         _hotkeyService = new HotkeyService(_settingsService);
         _signalService = new UnixSignalService();
+        _imageCacheService = new ImageCacheService();
+        
+        // Set the static reference for RichHtmlControl to use
+        RichHtmlControl.ImageCache = _imageCacheService;
     }
 
     public override void OnFrameworkInitializationCompleted()
@@ -41,9 +47,9 @@ public partial class App : Application
             // More info: https://docs.avaloniaui.net/docs/guides/development-guides/data-validation#manage-validationplugins
             DisableAvaloniaDataAnnotationValidation();
             
-            if (_settingsService == null || _apiClient == null || _hotkeyService == null || _signalService == null)
+            if (_settingsService == null || _apiClient == null || _hotkeyService == null || _signalService == null || _imageCacheService == null)
                 throw new InvalidOperationException("Services not initialized");
-            _mainWindow = new MainWindow(new MainWindowViewModel(_settingsService, _apiClient, _hotkeyService), _settingsService, _hotkeyService)
+            _mainWindow = new MainWindow(new MainWindowViewModel(_settingsService, _apiClient, _hotkeyService, _imageCacheService), _settingsService, _hotkeyService)
             {
                 WindowStartupLocation = WindowStartupLocation.Manual, // We'll handle positioning ourselves
                 ShowInTaskbar = true

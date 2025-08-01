@@ -8,6 +8,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
+using GeFeSLE.Services;
 
 namespace GeFeSLE.Controls
 {
@@ -17,6 +18,9 @@ namespace GeFeSLE.Controls
             AvaloniaProperty.Register<RichHtmlControl, string>(nameof(HtmlContent), string.Empty);
 
         private StackPanel? _contentPanel;
+        
+        // Static reference to image cache service - set by the application
+        public static ImageCacheService? ImageCache { get; set; }
 
         public string HtmlContent
         {
@@ -438,208 +442,77 @@ namespace GeFeSLE.Controls
             }
         }
 
-        private static readonly object _imageLoadingLock = new object();
-        private static readonly HashSet<string> _currentlyLoadingImages = new();
-
         private void CreateImageControl(Panel container, string imageUrl, string altText)
         {
-            // Prevent multiple simultaneous loads of the same image during rapid UI updates
-            lock (_imageLoadingLock)
+            // Use cached images instead of loading individually
+            if (ImageCache == null)
             {
-                if (_currentlyLoadingImages.Contains(imageUrl))
-                {
-                    // Image is already being loaded, skip this request to prevent crashes
-                    return;
-                }
-                _currentlyLoadingImages.Add(imageUrl);
-            }
-
-            // Ensure we're on UI thread but avoid recursive posting
-            if (!Dispatcher.UIThread.CheckAccess())
-            {
-                // If we're not on UI thread, safely defer this
-                Dispatcher.UIThread.Post(() =>
-                {
-                    try
-                    {
-                        CreateImageControlInternal(container, imageUrl, altText);
-                    }
-                    finally
-                    {
-                        lock (_imageLoadingLock)
-                        {
-                            _currentlyLoadingImages.Remove(imageUrl);
-                        }
-                    }
-                }, DispatcherPriority.Background);
+                ShowBrokenImageStatic(container, imageUrl, altText, "Image cache not available");
                 return;
             }
 
-            try
+            var cachedImage = ImageCache.GetCachedImage(imageUrl);
+            if (cachedImage == null || !cachedImage.IsLoaded)
             {
-                CreateImageControlInternal(container, imageUrl, altText);
+                // Image not preloaded or failed to load - show broken image
+                ShowBrokenImageStatic(container, imageUrl, altText, "Image not preloaded");
+                return;
             }
-            finally
+
+            if (cachedImage.Bitmap != null)
             {
-                lock (_imageLoadingLock)
+                // Image loaded successfully - create image control
+                var imageContainer = new StackPanel
                 {
-                    _currentlyLoadingImages.Remove(imageUrl);
-                }
-            }
-        }
+                    Orientation = Avalonia.Layout.Orientation.Vertical,
+                    Margin = new Thickness(0, 8, 0, 8),
+                    HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch
+                };
 
-        private void CreateImageControlInternal(Panel container, string imageUrl, string altText)
-        {
-            var imageContainer = new StackPanel
-            {
-                Orientation = Avalonia.Layout.Orientation.Vertical,
-                Margin = new Thickness(0, 8, 0, 8),
-                HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch,
-                MinHeight = 24 // Reserve space to prevent layout jumping
-            };
-
-            // Create image control (hidden initially)
-            var image = new Image
-            {
-                Stretch = Stretch.Uniform,
-                StretchDirection = StretchDirection.DownOnly,
-                HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Left,
-                VerticalAlignment = Avalonia.Layout.VerticalAlignment.Top,
-                MaxHeight = 300,
-                Margin = new Thickness(0, 0, 0, 4),
-                IsVisible = false // Hidden until loaded
-            };
-
-            // Create a stable placeholder that maintains consistent height
-            var placeholderPanel = new StackPanel
-            {
-                Orientation = Avalonia.Layout.Orientation.Horizontal,
-                MinHeight = 20,
-                HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch
-            };
-
-            var loadingIcon = new TextBlock
-            {
-                Text = "⏳",
-                FontSize = 14,
-                VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
-                Margin = new Thickness(0, 0, 8, 0)
-            };
-
-            var loadingText = new TextBlock
-            {
-                Text = $"Loading: {(string.IsNullOrEmpty(altText) || altText == "Image" ? "image" : altText)}",
-                Foreground = Brushes.Gray,
-                FontSize = 11,
-                FontStyle = FontStyle.Italic,
-                TextWrapping = TextWrapping.Wrap,
-                VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
-                HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch
-            };
-
-            placeholderPanel.Children.Add(loadingIcon);
-            placeholderPanel.Children.Add(loadingText);
-
-            // Add both placeholder and image to container
-            imageContainer.Children.Add(placeholderPanel);
-            imageContainer.Children.Add(image);
-
-            // Add to container first, then start loading
-            container.Children.Add(imageContainer);
-
-            // Start loading asynchronously but don't block UI
-            _ = Task.Run(() => LoadImageAsync(image, imageUrl, altText, imageContainer, placeholderPanel));
-        }
-
-        private async void LoadImageAsync(Image imageControl, string imageUrl, string altText, Panel imageContainer, Panel placeholderPanel)
-        {
-            try
-            {
-                using var httpClient = new System.Net.Http.HttpClient();
-                httpClient.Timeout = TimeSpan.FromSeconds(10); // Reasonable timeout
-
-                var response = await httpClient.GetAsync(imageUrl);
-                
-                if (response.IsSuccessStatusCode)
+                var image = new Image
                 {
-                    var imageBytes = await response.Content.ReadAsByteArrayAsync();
-                    
-                    await Dispatcher.UIThread.InvokeAsync(() =>
+                    Source = cachedImage.Bitmap,
+                    Stretch = Stretch.Uniform,
+                    StretchDirection = StretchDirection.DownOnly,
+                    HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Left,
+                    VerticalAlignment = Avalonia.Layout.VerticalAlignment.Top,
+                    MaxHeight = 300,
+                    Margin = new Thickness(0, 0, 0, 4)
+                };
+
+                imageContainer.Children.Add(image);
+
+                // Add alt text as caption if provided
+                if (!string.IsNullOrEmpty(altText) && altText != "Image")
+                {
+                    var caption = new TextBlock
                     {
-                        try
-                        {
-                            using var stream = new System.IO.MemoryStream(imageBytes);
-                            var bitmap = new Avalonia.Media.Imaging.Bitmap(stream);
-                            
-                            imageControl.Source = bitmap;
-                            
-                            // Hide placeholder and show image
-                            placeholderPanel.IsVisible = false;
-                            imageControl.IsVisible = true;
-                            
-                            // Add alt text as caption if provided
-                            if (!string.IsNullOrEmpty(altText) && altText != "Image")
-                            {
-                                var caption = new TextBlock
-                                {
-                                    Text = altText,
-                                    Foreground = Brushes.LightGray,
-                                    FontSize = 10,
-                                    FontStyle = FontStyle.Italic,
-                                    TextWrapping = TextWrapping.Wrap,
-                                    HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Left,
-                                    Margin = new Thickness(0, 2, 0, 0)
-                                };
-                                imageContainer.Children.Add(caption);
-                            }
-                        }
-                        catch (Exception)
-                        {
-                            ShowBrokenImage(imageContainer, placeholderPanel, imageUrl, altText, $"Failed to load image: decode error");
-                        }
-                    });
+                        Text = altText,
+                        Foreground = Brushes.LightGray,
+                        FontSize = 10,
+                        FontStyle = FontStyle.Italic,
+                        TextWrapping = TextWrapping.Wrap,
+                        HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Left,
+                        Margin = new Thickness(0, 2, 0, 0)
+                    };
+                    imageContainer.Children.Add(caption);
                 }
-                else
-                {
-                    await Dispatcher.UIThread.InvokeAsync(() =>
-                    {
-                        ShowBrokenImage(imageContainer, placeholderPanel, imageUrl, altText, $"Failed to load image: {(int)response.StatusCode} {response.ReasonPhrase}");
-                    });
-                }
+
+                container.Children.Add(imageContainer);
             }
-            catch (System.Net.Http.HttpRequestException)
+            else
             {
-                await Dispatcher.UIThread.InvokeAsync(() =>
-                {
-                    ShowBrokenImage(imageContainer, placeholderPanel, imageUrl, altText, $"Failed to load image: network error");
-                });
-            }
-            catch (TaskCanceledException)
-            {
-                await Dispatcher.UIThread.InvokeAsync(() =>
-                {
-                    ShowBrokenImage(imageContainer, placeholderPanel, imageUrl, altText, $"Failed to load image: timeout");
-                });
-            }
-            catch (Exception)
-            {
-                await Dispatcher.UIThread.InvokeAsync(() =>
-                {
-                    ShowBrokenImage(imageContainer, placeholderPanel, imageUrl, altText, $"Failed to load image: error");
-                });
+                // Image failed to load - show broken image
+                ShowBrokenImageStatic(container, imageUrl, altText, cachedImage.ErrorMessage ?? "Unknown error");
             }
         }
 
-        private void ShowBrokenImage(Panel imageContainer, Panel placeholderPanel, string imageUrl, string altText, string errorMessage)
+        private void ShowBrokenImageStatic(Panel container, string imageUrl, string altText, string errorMessage)
         {
-            // Hide the loading placeholder
-            placeholderPanel.IsVisible = false;
-            
-            // Create broken image indicator
             var brokenImagePanel = new StackPanel
             {
                 Orientation = Avalonia.Layout.Orientation.Horizontal,
-                Margin = new Thickness(0, 4, 0, 4),
+                Margin = new Thickness(0, 8, 0, 8),
                 MinHeight = 20 // Maintain consistent height
             };
 
@@ -699,16 +572,7 @@ namespace GeFeSLE.Controls
             brokenImagePanel.Children.Add(brokenIcon);
             brokenImagePanel.Children.Add(imageInfo);
 
-            // Replace the placeholder with the broken image display
-            var placeholderIndex = imageContainer.Children.IndexOf(placeholderPanel);
-            if (placeholderIndex >= 0)
-            {
-                imageContainer.Children[placeholderIndex] = brokenImagePanel;
-            }
-            else
-            {
-                imageContainer.Children.Add(brokenImagePanel);
-            }
+            container.Children.Add(brokenImagePanel);
         }
 
         private void ProcessTextWithImages(Panel container, string text)

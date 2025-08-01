@@ -15,6 +15,7 @@ public partial class MainWindowViewModel : ViewModelBase
 {
     private readonly GeFeSLEApiClient _apiClient;
     private readonly SettingsService _settingsService;
+    private readonly ImageCacheService _imageCacheService;
     
     [ObservableProperty]
     private ObservableCollection<GeList> availableLists = new();
@@ -46,10 +47,11 @@ public partial class MainWindowViewModel : ViewModelBase
     public string Greeting { get; } = "Welcome to Avalonia!";
     public SettingsWindowViewModel SettingsViewModel { get; }
 
-    public MainWindowViewModel(SettingsService settingsService, GeFeSLEApiClient apiClient, HotkeyService hotkeyService)
+    public MainWindowViewModel(SettingsService settingsService, GeFeSLEApiClient apiClient, HotkeyService hotkeyService, ImageCacheService imageCacheService)
     {
         _apiClient = apiClient;
         _settingsService = settingsService;
+        _imageCacheService = imageCacheService;
         SettingsViewModel = new SettingsWindowViewModel(settingsService, apiClient, hotkeyService);
         
         // Initialize metadata panel state from settings
@@ -160,11 +162,15 @@ public partial class MainWindowViewModel : ViewModelBase
             _apiClient.SetBaseAddress(SettingsViewModel.ServerUrl ?? "");
             var items = await _apiClient.GetListItemsAsync(listId);
             
-            ListItems.Clear();
             if (items != null && items.Count > 0)
             {
                 // Only show visible items and ensure no null values
                 var visibleItems = items.Where(item => item != null && item.Visible).ToList();
+                
+                // Phase 1: Extract all image URLs from all items before rendering any UI
+                StatusMessage = "Extracting images...";
+                var allImageUrls = new List<string>();
+                
                 foreach (var item in visibleItems)
                 {
                     try
@@ -189,7 +195,9 @@ public partial class MainWindowViewModel : ViewModelBase
                         // Ensure item starts collapsed
                         item.IsExpanded = false;
                         
-                        ListItems.Add(item);
+                        // Extract image URLs from this item's content
+                        var itemImageUrls = await _imageCacheService.ExtractImageUrlsFromContentAsync(item.Comment);
+                        allImageUrls.AddRange(itemImageUrls);
                     }
                     catch (Exception ex)
                     {
@@ -198,16 +206,54 @@ public partial class MainWindowViewModel : ViewModelBase
                         continue;
                     }
                 }
-                DBg.d(LogLevel.Debug, $"Loaded {ListItems.Count} valid items (out of {items.Count} total)");
+                
+                // Phase 2: Preload all images before showing any items
+                if (allImageUrls.Count > 0)
+                {
+                    DBg.d(LogLevel.Debug, $"Found {allImageUrls.Count} images to preload");
+                    StatusMessage = $"Loading images (0/{allImageUrls.Count})...";
+                    
+                    await _imageCacheService.PreloadImagesAsync(allImageUrls, (completed, total) =>
+                    {
+                        // Update status on UI thread
+                        Dispatcher.UIThread.Post(() =>
+                        {
+                            StatusMessage = $"Loading images ({completed}/{total})...";
+                        });
+                    });
+                    
+                    DBg.d(LogLevel.Debug, "All images preloaded successfully");
+                }
+                
+                // Phase 3: Now render all items at once with cached images
+                StatusMessage = "Rendering items...";
+                ListItems.Clear();
+                foreach (var item in visibleItems)
+                {
+                    try
+                    {
+                        ListItems.Add(item);
+                    }
+                    catch (Exception ex)
+                    {
+                        DBg.d(LogLevel.Warning, $"Error adding item to list: {ex.Message}");
+                    }
+                }
+                
+                DBg.d(LogLevel.Debug, $"Loaded {ListItems.Count} valid items with all images preloaded");
+                StatusMessage = "";
             }
             else
             {
+                ListItems.Clear();
                 DBg.d(LogLevel.Debug, "No items found or empty response");
+                StatusMessage = "";
             }
         }
         catch (Exception ex)
         {
             DBg.d(LogLevel.Error, $"Error loading list items: {ex.Message}");
+            StatusMessage = $"Error: {ex.Message}";
         }
         finally
         {
