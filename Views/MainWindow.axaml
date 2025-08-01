@@ -203,16 +203,12 @@
                                             <Border Grid.Row="1" 
                                                     IsVisible="{Binding IsExpanded}"
                                                     Margin="0,8,0,0"
-                                                    MaxHeight="400"
                                                     Background="Black">
-                                                <ScrollViewer VerticalScrollBarVisibility="Auto"
-                                                              HorizontalScrollBarVisibility="Disabled">
-                                                    <controls:RichHtmlControl 
-                                                        HtmlContent="{Binding Comment, FallbackValue='', TargetNullValue=''}"
-                                                        Background="Black"
-                                                        HorizontalAlignment="Stretch"
-                                                        VerticalAlignment="Top"/>
-                                                </ScrollViewer>
+                                                <controls:RichHtmlControl 
+                                                    HtmlContent="{Binding Comment, FallbackValue='', TargetNullValue=''}"
+                                                    Background="Black"
+                                                    HorizontalAlignment="Stretch"
+                                                    VerticalAlignment="Top"/>
                                             </Border>
                                         </Grid>
                                         </Border>

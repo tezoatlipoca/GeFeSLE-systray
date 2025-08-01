@@ -116,7 +116,9 @@ namespace GeFeSLE.Controls
                         var text = child.InnerText?.Trim();
                         if (!string.IsNullOrEmpty(text))
                         {
-                            ProcessTextWithImages(container, text);
+                            // Check if we're in a code context by looking at parent elements
+                            bool isInCodeContext = IsInCodeContext(child);
+                            ProcessTextWithSpecialElements(container, text, isInCodeContext);
                         }
                         break;
 
@@ -132,16 +134,17 @@ namespace GeFeSLE.Controls
             switch (element.Name.ToLower())
             {
                 case "p":
-                    var paragraph = new TextBlock
+                    // Process paragraph content with special text processing
+                    var paragraphPanel = new StackPanel
                     {
-                        Text = element.InnerText?.Trim() ?? "",
-                        TextWrapping = TextWrapping.Wrap,
+                        Orientation = Avalonia.Layout.Orientation.Vertical,
                         Margin = new Thickness(0, 0, 0, 8),
-                        Foreground = Brushes.White,
-                        HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch,
-                        MaxWidth = double.PositiveInfinity
+                        HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch
                     };
-                    container.Children.Add(paragraph);
+                    
+                    // Process the paragraph's child nodes (which includes text and other elements)
+                    ProcessHtmlNode(element, paragraphPanel);
+                    container.Children.Add(paragraphPanel);
                     break;
 
                 case "h1":
@@ -243,9 +246,10 @@ namespace GeFeSLE.Controls
                     break;
 
                 case "code":
+                    var codeText = element.InnerText ?? "";
                     var code = new TextBlock
                     {
-                        Text = element.InnerText ?? "",
+                        Text = codeText,
                         FontFamily = new FontFamily("Consolas,Monaco,'Courier New',monospace"),
                         Background = Brushes.DarkGray,
                         Padding = new Thickness(4, 2),
@@ -258,9 +262,10 @@ namespace GeFeSLE.Controls
                     break;
 
                 case "pre":
+                    var preText = element.InnerText ?? "";
                     var pre = new TextBlock
                     {
-                        Text = element.InnerText ?? "",
+                        Text = preText,
                         FontFamily = new FontFamily("Consolas,Monaco,'Courier New',monospace"),
                         Background = Brushes.DarkGray,
                         Padding = new Thickness(8),
@@ -297,6 +302,11 @@ namespace GeFeSLE.Controls
                     container.Children.Add(divPanel);
                     break;
 
+                case "span":
+                    // For spans, just process their child elements directly
+                    ProcessHtmlNode(element, container);
+                    break;
+
                 default:
                     // For unknown elements, just process their children
                     ProcessHtmlNode(element, container);
@@ -323,17 +333,22 @@ namespace GeFeSLE.Controls
                     Margin = new Thickness(0, 0, 8, 0)
                 };
 
-                var itemContent = new TextBlock
+                // Create a container for the item content that can handle mixed text and links
+                var itemContentPanel = new StackPanel
                 {
-                    Text = item.InnerText?.Trim() ?? "",
-                    TextWrapping = TextWrapping.Wrap,
-                    Foreground = Brushes.White,
-                    HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch,
-                    MaxWidth = double.PositiveInfinity
+                    Orientation = Avalonia.Layout.Orientation.Vertical,
+                    HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch
                 };
 
+                // Process the item text for links and formatting
+                var itemText = item.InnerText?.Trim() ?? "";
+                if (!string.IsNullOrEmpty(itemText))
+                {
+                    ProcessTextWithSpecialElements(itemContentPanel, itemText, false);
+                }
+
                 itemPanel.Children.Add(bulletText);
-                itemPanel.Children.Add(itemContent);
+                itemPanel.Children.Add(itemContentPanel);
                 container.Children.Add(itemPanel);
             }
         }
@@ -358,17 +373,22 @@ namespace GeFeSLE.Controls
                     Margin = new Thickness(0, 0, 8, 0)
                 };
 
-                var itemContent = new TextBlock
+                // Create a container for the item content that can handle mixed text and links
+                var itemContentPanel = new StackPanel
                 {
-                    Text = item.InnerText?.Trim() ?? "",
-                    TextWrapping = TextWrapping.Wrap,
-                    Foreground = Brushes.White,
-                    HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch,
-                    MaxWidth = double.PositiveInfinity
+                    Orientation = Avalonia.Layout.Orientation.Vertical,
+                    HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch
                 };
 
+                // Process the item text for links and formatting
+                var itemText = item.InnerText?.Trim() ?? "";
+                if (!string.IsNullOrEmpty(itemText))
+                {
+                    ProcessTextWithSpecialElements(itemContentPanel, itemText, false);
+                }
+
                 itemPanel.Children.Add(numberText);
-                itemPanel.Children.Add(itemContent);
+                itemPanel.Children.Add(itemContentPanel);
                 container.Children.Add(itemPanel);
                 index++;
             }
@@ -629,77 +649,194 @@ namespace GeFeSLE.Controls
 
         private void ProcessTextWithImages(Panel container, string text)
         {
-            // Regex to match Markdown-style images: ![alt](url)
-            var imageRegex = new System.Text.RegularExpressions.Regex(@"!\[([^\]]*)\]\(([^)]+)\)");
-            var matches = imageRegex.Matches(text);
+            // Process text for images, markdown links, and URLs
+            ProcessTextWithSpecialElements(container, text, false);
+        }
 
-            if (matches.Count == 0)
+        private void ProcessTextWithSpecialElements(Panel container, string text, bool isInCodeContext)
+        {
+            if (string.IsNullOrWhiteSpace(text))
+                return;
+
+            var patterns = new List<(Regex regex, string type)>();
+            
+            // Markdown images: ![alt](url)
+            patterns.Add((new Regex(@"!\[([^\]]*)\]\(([^)]+)\)"), "image"));
+            
+            // Don't process links in code contexts
+            if (!isInCodeContext)
             {
-                // No images found, just add regular text
-                var textBlock = new TextBlock
+                // Markdown links: [text](url)
+                patterns.Add((new Regex(@"(?<!!)\[([^\]]+)\]\(([^)]+)\)"), "markdown-link"));
+                
+                // URLs starting with http/https - improved pattern to include more characters
+                patterns.Add((new Regex(@"(?<!\]\()https?://[^\s<>\[\]()]*[^\s<>\[\]().,;!?]"), "url"));
+                
+                // Markdown bold: **text**
+                patterns.Add((new Regex(@"\*\*([^*]+)\*\*"), "markdown-bold"));
+                
+                // Markdown italic: _text_
+                patterns.Add((new Regex(@"(?<!\w)_([^_\s][^_]*[^_\s]|[^_\s])_(?!\w)"), "markdown-italic"));
+            }
+
+            // Find all matches and sort by position
+            var allMatches = new List<(int start, int length, string type, Match match)>();
+            
+            foreach (var (regex, type) in patterns)
+            {
+                var matches = regex.Matches(text);
+                foreach (Match match in matches)
                 {
-                    Text = text,
-                    TextWrapping = TextWrapping.Wrap,
-                    Foreground = Brushes.White,
-                    HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch,
-                    MaxWidth = double.PositiveInfinity
-                };
-                container.Children.Add(textBlock);
+                    allMatches.Add((match.Index, match.Length, type, match));
+                }
+            }
+
+            // Sort by position to process in order
+            allMatches.Sort((a, b) => a.start.CompareTo(b.start));
+
+            if (allMatches.Count == 0)
+            {
+                // No special elements found, just add regular text
+                AddTextBlock(container, text);
                 return;
             }
 
-            // Process text with images
+            // Process text with special elements
             int lastIndex = 0;
             
-            foreach (System.Text.RegularExpressions.Match match in matches)
+            foreach (var (start, length, type, match) in allMatches)
             {
-                // Add text before this image (if any)
-                if (match.Index > lastIndex)
+                // Skip overlapping matches (e.g., URLs already inside markdown links)
+                if (start < lastIndex)
+                    continue;
+
+                // Add text before this element (if any)
+                if (start > lastIndex)
                 {
-                    var beforeText = text.Substring(lastIndex, match.Index - lastIndex);
+                    var beforeText = text.Substring(lastIndex, start - lastIndex);
                     if (!string.IsNullOrWhiteSpace(beforeText))
                     {
-                        var textBlock = new TextBlock
-                        {
-                            Text = beforeText,
-                            TextWrapping = TextWrapping.Wrap,
-                            Foreground = Brushes.White,
-                            HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch,
-                            MaxWidth = double.PositiveInfinity
-                        };
-                        container.Children.Add(textBlock);
+                        AddTextBlock(container, beforeText);
                     }
                 }
 
-                // Add the image
-                var altText = match.Groups[1].Value;
-                var imageUrl = match.Groups[2].Value;
-                
-                if (!string.IsNullOrEmpty(imageUrl))
+                // Process the special element
+                switch (type)
                 {
-                    CreateImageControl(container, imageUrl, altText);
+                    case "image":
+                        var altText = match.Groups[1].Value;
+                        var imageUrl = match.Groups[2].Value;
+                        if (!string.IsNullOrEmpty(imageUrl))
+                        {
+                            CreateImageControl(container, imageUrl, altText);
+                        }
+                        break;
+
+                    case "markdown-link":
+                        var linkText = match.Groups[1].Value;
+                        var linkUrl = match.Groups[2].Value;
+                        if (!string.IsNullOrEmpty(linkUrl))
+                        {
+                            CreateLinkButton(container, linkUrl, linkText);
+                        }
+                        break;
+
+                    case "url":
+                        var url = match.Value;
+                        CreateLinkButton(container, url, url);
+                        break;
+
+                    case "markdown-bold":
+                        var boldText = match.Groups[1].Value;
+                        CreateFormattedTextBlock(container, boldText, FontWeight.Bold, FontStyle.Normal);
+                        break;
+
+                    case "markdown-italic":
+                        var italicText = match.Groups[1].Value;
+                        CreateFormattedTextBlock(container, italicText, FontWeight.Normal, FontStyle.Italic);
+                        break;
                 }
 
-                lastIndex = match.Index + match.Length;
+                lastIndex = start + length;
             }
 
-            // Add any remaining text after the last image
+            // Add any remaining text after the last element
             if (lastIndex < text.Length)
             {
                 var afterText = text.Substring(lastIndex);
                 if (!string.IsNullOrWhiteSpace(afterText))
                 {
-                    var textBlock = new TextBlock
-                    {
-                        Text = afterText,
-                        TextWrapping = TextWrapping.Wrap,
-                        Foreground = Brushes.White,
-                        HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch,
-                        MaxWidth = double.PositiveInfinity
-                    };
-                    container.Children.Add(textBlock);
+                    AddTextBlock(container, afterText);
                 }
             }
+        }
+
+        private void AddTextBlock(Panel container, string text)
+        {
+            var textBlock = new TextBlock
+            {
+                Text = text,
+                TextWrapping = TextWrapping.Wrap,
+                Foreground = Brushes.White,
+                HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch,
+                MaxWidth = double.PositiveInfinity
+            };
+            container.Children.Add(textBlock);
+        }
+
+        private void CreateLinkButton(Panel container, string url, string displayText)
+        {
+            var link = new Button
+            {
+                Background = Brushes.Transparent,
+                BorderThickness = new Thickness(0),
+                Foreground = Brushes.LightBlue,
+                HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Left,
+                HorizontalContentAlignment = Avalonia.Layout.HorizontalAlignment.Left,
+                Padding = new Thickness(0),
+                Cursor = new Avalonia.Input.Cursor(Avalonia.Input.StandardCursorType.Hand),
+                Margin = new Thickness(0, 0, 4, 0),
+                Content = new TextBlock
+                {
+                    Text = displayText,
+                    TextWrapping = TextWrapping.Wrap,
+                    Foreground = Brushes.LightBlue,
+                    TextDecorations = TextDecorations.Underline
+                }
+            };
+            
+            link.Click += (s, e) => OpenUrl(url);
+            container.Children.Add(link);
+        }
+
+        private void CreateFormattedTextBlock(Panel container, string text, FontWeight weight, FontStyle style)
+        {
+            var textBlock = new TextBlock
+            {
+                Text = text,
+                TextWrapping = TextWrapping.Wrap,
+                Foreground = Brushes.White,
+                FontWeight = weight,
+                FontStyle = style,
+                HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch,
+                MaxWidth = double.PositiveInfinity
+            };
+            container.Children.Add(textBlock);
+        }
+
+        private bool IsInCodeContext(HtmlNode node)
+        {
+            // Check if this text node is inside a code or pre element
+            var parent = node.ParentNode;
+            while (parent != null)
+            {
+                if (parent.Name?.ToLower() == "code" || parent.Name?.ToLower() == "pre")
+                {
+                    return true;
+                }
+                parent = parent.ParentNode;
+            }
+            return false;
         }
     }
 }

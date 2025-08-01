@@ -189,17 +189,30 @@ public partial class MainWindow : Window
             var container = listBox.ContainerFromIndex(itemIndex);
             if (container is ListBoxItem listBoxItem)
             {
-                // Calculate the position we want to maintain
-                // Get the current scroll position and the item's position
-                var currentOffset = scrollViewer.Offset.Y;
+                // Store the item's current top position relative to the scroll viewer
                 var itemBounds = listBoxItem.Bounds;
+                var currentScrollOffset = scrollViewer.Offset.Y;
                 
-                // Calculate where the item header should be positioned
-                // We want to keep the item header in a consistent position
-                var targetOffset = Math.Max(0, itemBounds.Y - 50); // Keep 50px padding from top
+                // Calculate the item's absolute position in the scroll content
+                var itemTopInScrollContent = itemBounds.Y;
                 
-                // Scroll to the calculated position
-                scrollViewer.Offset = scrollViewer.Offset.WithY(targetOffset);
+                // Calculate the item's current position relative to the visible area
+                var itemTopInViewport = itemTopInScrollContent - currentScrollOffset;
+                
+                // If the item is expanding and we want to keep its header visible at the same position
+                if (item.IsExpanded)
+                {
+                    // Keep the item header at its current position in the viewport
+                    // This means the scroll offset should remain where the item header is currently visible
+                    var targetScrollOffset = Math.Max(0, itemTopInScrollContent - itemTopInViewport);
+                    scrollViewer.Offset = scrollViewer.Offset.WithY(targetScrollOffset);
+                }
+                else
+                {
+                    // When collapsing, ensure the item is still visible
+                    var targetScrollOffset = Math.Max(0, itemTopInScrollContent - 20); // 20px padding from top
+                    scrollViewer.Offset = scrollViewer.Offset.WithY(targetScrollOffset);
+                }
             }
         }
         catch
