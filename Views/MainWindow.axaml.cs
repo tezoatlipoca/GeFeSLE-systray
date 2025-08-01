@@ -22,7 +22,6 @@ public partial class MainWindow : Window
     private bool _isInitialized = false;
     
     // For scroll position preservation during item expansion/collapse
-    private GeListItem? _lastToggledItem;
     private Point _lastCursorPosition;
 
     public MainWindow(MainWindowViewModel viewModel, SettingsService settingsService, HotkeyService hotkeyService)
@@ -195,56 +194,44 @@ public partial class MainWindow : Window
             
             if (scrollViewer == null || listBox == null) return;
 
-            // Store reference and initial position
-            _lastToggledItem = toggledItem;
             var initialScrollY = scrollViewer.Offset.Y;
+            
+            DBg.d(LogLevel.Debug, $"Moving item {toggledItem.Id} to top of viewport from scroll position {initialScrollY:F1}");
 
             // Wait for the layout to update after expansion/collapse
-            await Task.Delay(150); // Give more time for layout to settle
+            await Task.Delay(100);
 
             // Find the container for the toggled item
             var itemContainer = FindItemContainer(listBox, toggledItem);
-            if (itemContainer == null) return;
+            if (itemContainer == null) 
+            {
+                DBg.d(LogLevel.Warning, $"Could not find container for item {toggledItem.Id}");
+                return;
+            }
 
             // Get the current position of the item container
-            var containerBounds = itemContainer.Bounds;
-            var scrollViewerBounds = scrollViewer.Bounds;
-
-            // Calculate the top of the item relative to the scroll viewer viewport
             var itemTop = itemContainer.TranslatePoint(new Point(0, 0), scrollViewer);
-            if (!itemTop.HasValue) return;
-
-            var currentItemTopInViewport = itemTop.Value.Y - scrollViewer.Offset.Y;
-
-            // If the item header has moved significantly or is outside comfortable viewing area,
-            // adjust scroll to keep it in a good position
-            var viewportHeight = scrollViewer.Viewport.Height;
-            var targetPositionInViewport = Math.Min(viewportHeight * 0.3, 100); // 30% down or 100px max
-
-            // Only adjust if the item moved too much or is not optimally positioned
-            if (currentItemTopInViewport < 0 || 
-                currentItemTopInViewport > viewportHeight * 0.7 ||
-                Math.Abs(currentItemTopInViewport - targetPositionInViewport) > 50)
+            if (!itemTop.HasValue) 
             {
-                var desiredScrollY = itemTop.Value.Y - targetPositionInViewport;
-                
-                // Clamp to valid scroll range
-                var maxScroll = Math.Max(0, scrollViewer.ScrollBarMaximum.Y);
-                var newScrollY = Math.Max(0, Math.Min(maxScroll, desiredScrollY));
+                DBg.d(LogLevel.Warning, $"Could not translate item {toggledItem.Id} position");
+                return;
+            }
 
-                // Apply smooth scroll adjustment
-                scrollViewer.Offset = scrollViewer.Offset.WithY(newScrollY);
-                
-                DBg.d(LogLevel.Debug, $"Adjusted scroll position for item {toggledItem.Id}: {initialScrollY:F1} -> {newScrollY:F1}px");
-            }
-            else
-            {
-                DBg.d(LogLevel.Debug, $"Item {toggledItem.Id} header position is good, no scroll adjustment needed");
-            }
+            // Simple: move the toggled item to the top of the viewport
+            var newScrollY = itemTop.Value.Y;
+            
+            // Clamp to valid scroll range
+            var maxScroll = Math.Max(0, scrollViewer.ScrollBarMaximum.Y);
+            newScrollY = Math.Max(0, Math.Min(maxScroll, newScrollY));
+            
+            // Apply the scroll change
+            scrollViewer.Offset = scrollViewer.Offset.WithY(newScrollY);
+            
+            DBg.d(LogLevel.Debug, $"Moved item {toggledItem.Id} to top: {initialScrollY:F1} -> {newScrollY:F1}px");
         }
         catch (Exception ex)
         {
-            DBg.d(LogLevel.Warning, $"Failed to preserve scroll position: {ex.Message}");
+            DBg.d(LogLevel.Warning, $"Failed to move item to top: {ex.Message}");
         }
     }
 
