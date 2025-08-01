@@ -7,6 +7,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.RegularExpressions;
+using System.Threading.Tasks;
 
 namespace GeFeSLE.Controls
 {
@@ -473,48 +474,74 @@ namespace GeFeSLE.Controls
                 using var httpClient = new System.Net.Http.HttpClient();
                 httpClient.Timeout = TimeSpan.FromSeconds(10); // Reasonable timeout
 
-                var imageBytes = await httpClient.GetByteArrayAsync(imageUrl);
+                var response = await httpClient.GetAsync(imageUrl);
                 
-                await Dispatcher.UIThread.InvokeAsync(() =>
+                if (response.IsSuccessStatusCode)
                 {
-                    try
+                    var imageBytes = await response.Content.ReadAsByteArrayAsync();
+                    
+                    await Dispatcher.UIThread.InvokeAsync(() =>
                     {
-                        using var stream = new System.IO.MemoryStream(imageBytes);
-                        var bitmap = new Avalonia.Media.Imaging.Bitmap(stream);
-                        
-                        imageControl.Source = bitmap;
-                        
-                        // Hide placeholder and show image
-                        placeholderPanel.IsVisible = false;
-                        imageControl.IsVisible = true;
-                        
-                        // Add alt text as caption if provided
-                        if (!string.IsNullOrEmpty(altText) && altText != "Image")
+                        try
                         {
-                            var caption = new TextBlock
+                            using var stream = new System.IO.MemoryStream(imageBytes);
+                            var bitmap = new Avalonia.Media.Imaging.Bitmap(stream);
+                            
+                            imageControl.Source = bitmap;
+                            
+                            // Hide placeholder and show image
+                            placeholderPanel.IsVisible = false;
+                            imageControl.IsVisible = true;
+                            
+                            // Add alt text as caption if provided
+                            if (!string.IsNullOrEmpty(altText) && altText != "Image")
                             {
-                                Text = altText,
-                                Foreground = Brushes.LightGray,
-                                FontSize = 10,
-                                FontStyle = FontStyle.Italic,
-                                TextWrapping = TextWrapping.Wrap,
-                                HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Left,
-                                Margin = new Thickness(0, 2, 0, 0)
-                            };
-                            imageContainer.Children.Add(caption);
+                                var caption = new TextBlock
+                                {
+                                    Text = altText,
+                                    Foreground = Brushes.LightGray,
+                                    FontSize = 10,
+                                    FontStyle = FontStyle.Italic,
+                                    TextWrapping = TextWrapping.Wrap,
+                                    HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Left,
+                                    Margin = new Thickness(0, 2, 0, 0)
+                                };
+                                imageContainer.Children.Add(caption);
+                            }
                         }
-                    }
-                    catch (Exception ex)
+                        catch (Exception)
+                        {
+                            ShowBrokenImage(imageContainer, placeholderPanel, imageUrl, altText, $"Failed to load image: decode error");
+                        }
+                    });
+                }
+                else
+                {
+                    await Dispatcher.UIThread.InvokeAsync(() =>
                     {
-                        ShowBrokenImage(imageContainer, placeholderPanel, imageUrl, altText, $"Failed to decode image: {ex.Message}");
-                    }
-                });
+                        ShowBrokenImage(imageContainer, placeholderPanel, imageUrl, altText, $"Failed to load image: {(int)response.StatusCode} {response.ReasonPhrase}");
+                    });
+                }
             }
-            catch (Exception ex)
+            catch (System.Net.Http.HttpRequestException)
             {
                 await Dispatcher.UIThread.InvokeAsync(() =>
                 {
-                    ShowBrokenImage(imageContainer, placeholderPanel, imageUrl, altText, $"Failed to load image: {ex.Message}");
+                    ShowBrokenImage(imageContainer, placeholderPanel, imageUrl, altText, $"Failed to load image: network error");
+                });
+            }
+            catch (TaskCanceledException)
+            {
+                await Dispatcher.UIThread.InvokeAsync(() =>
+                {
+                    ShowBrokenImage(imageContainer, placeholderPanel, imageUrl, altText, $"Failed to load image: timeout");
+                });
+            }
+            catch (Exception)
+            {
+                await Dispatcher.UIThread.InvokeAsync(() =>
+                {
+                    ShowBrokenImage(imageContainer, placeholderPanel, imageUrl, altText, $"Failed to load image: error");
                 });
             }
         }

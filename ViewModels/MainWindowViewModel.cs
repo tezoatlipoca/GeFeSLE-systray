@@ -7,6 +7,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using GeFeSLE.Models;
 using GeFeSLE.Services;
+using Avalonia.Threading;
 
 namespace GeFeSLE.ViewModels;
 
@@ -41,6 +42,9 @@ public partial class MainWindowViewModel : ViewModelBase
     
     // Track the currently expanded item to prevent multiple expansions
     private GeListItem? _currentlyExpandedItem = null;
+
+    // Event for scroll position preservation
+    public event Action<GeListItem>? ItemExpansionChanged;
 
     public string Greeting { get; } = "Welcome to Avalonia!";
     public SettingsWindowViewModel SettingsViewModel { get; }
@@ -328,6 +332,10 @@ public partial class MainWindowViewModel : ViewModelBase
                 _currentlyExpandedItem = item;
                 DBg.d(LogLevel.Debug, $"Expanded item {item.Id}");
             }
+            
+            // Notify the view to handle scroll position preservation
+            // Use Dispatcher to ensure UI has updated before scroll adjustment
+            Dispatcher.UIThread.Post(() => ItemExpansionChanged?.Invoke(item), DispatcherPriority.Loaded);
         }
     }
     

@@ -6,6 +6,9 @@ using Avalonia.Markup.Xaml;
 using Avalonia.Platform;
 using GeFeSLE.Services;
 using GeFeSLE.ViewModels;
+using GeFeSLE.Models;
+using Avalonia.LogicalTree;
+using System.Linq;
 
 namespace GeFeSLE.Views;
 
@@ -22,6 +25,9 @@ public partial class MainWindow : Window
         
         AvaloniaXamlLoader.Load(this);
         DataContext = viewModel;
+        
+        // Set up scroll position preservation
+        viewModel.ItemExpansionChanged += OnItemExpansionChanged;
         
         // Set up hotkey service
         _hotkeyService.SetToggleWindowAction(ToggleWindowVisibility);
@@ -153,6 +159,53 @@ public partial class MainWindow : Window
             Show();
             Activate();
             Focus();
+        }
+    }
+
+    private void OnItemExpansionChanged(GeListItem item)
+    {
+        // Find the ScrollViewer by name in the XAML
+        var scrollViewer = this.FindControl<ScrollViewer>("ItemsScrollViewer");
+        
+        // If not found by name, try to find it in the logical tree
+        if (scrollViewer == null)
+        {
+            scrollViewer = this.GetLogicalDescendants().OfType<ScrollViewer>().FirstOrDefault();
+        }
+        
+        if (scrollViewer == null || DataContext is not MainWindowViewModel viewModel) return;
+
+        // Find the ListBox containing the items
+        var listBox = scrollViewer.GetLogicalDescendants().OfType<ListBox>().FirstOrDefault();
+        if (listBox == null) return;
+
+        try
+        {
+            // Find the index of the item that was expanded
+            var itemIndex = viewModel.ListItems.IndexOf(item);
+            if (itemIndex < 0) return;
+
+            // Get the container for this item
+            var container = listBox.ContainerFromIndex(itemIndex);
+            if (container is ListBoxItem listBoxItem)
+            {
+                // Calculate the position we want to maintain
+                // Get the current scroll position and the item's position
+                var currentOffset = scrollViewer.Offset.Y;
+                var itemBounds = listBoxItem.Bounds;
+                
+                // Calculate where the item header should be positioned
+                // We want to keep the item header in a consistent position
+                var targetOffset = Math.Max(0, itemBounds.Y - 50); // Keep 50px padding from top
+                
+                // Scroll to the calculated position
+                scrollViewer.Offset = scrollViewer.Offset.WithY(targetOffset);
+            }
+        }
+        catch
+        {
+            // Ignore any errors in scroll position calculation
+            // This is a UI enhancement, not critical functionality
         }
     }
 

@@ -90,7 +90,8 @@
                                HorizontalAlignment="Center" VerticalAlignment="Center"/>
                     
                     <!-- Items list with full height expansion -->
-                    <ScrollViewer IsVisible="{Binding !IsLoadingItems}"
+                    <ScrollViewer Name="ItemsScrollViewer"
+                                  IsVisible="{Binding !IsLoadingItems}"
                                   HorizontalScrollBarVisibility="Disabled" 
                                   VerticalScrollBarVisibility="Auto">
                         <ListBox ItemsSource="{Binding ListItems}" 
