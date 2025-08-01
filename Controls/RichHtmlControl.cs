@@ -115,15 +115,7 @@ namespace GeFeSLE.Controls
                         var text = child.InnerText?.Trim();
                         if (!string.IsNullOrEmpty(text))
                         {
-                            var textBlock = new TextBlock
-                            {
-                                Text = text,
-                                TextWrapping = TextWrapping.Wrap,
-                                Foreground = Brushes.White,
-                                HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch,
-                                MaxWidth = double.PositiveInfinity // Will be constrained by MeasureOverride
-                            };
-                            container.Children.Add(textBlock);
+                            ProcessTextWithImages(container, text);
                         }
                         break;
 
@@ -284,6 +276,16 @@ namespace GeFeSLE.Controls
                     container.Children.Add(new TextBlock { Height = 8 });
                     break;
 
+                case "img":
+                    var imgSrc = element.GetAttributeValue("src", "");
+                    var imgAlt = element.GetAttributeValue("alt", "Image");
+                    
+                    if (!string.IsNullOrEmpty(imgSrc))
+                    {
+                        CreateImageControl(container, imgSrc, imgAlt);
+                    }
+                    break;
+
                 case "div":
                     var divPanel = new StackPanel 
                     { 
@@ -399,6 +401,242 @@ namespace GeFeSLE.Controls
             {
                 // Log error or show message to user
                 Console.WriteLine($"Failed to open URL {url}: {ex.Message}");
+            }
+        }
+
+        private void CreateImageControl(Panel container, string imageUrl, string altText)
+        {
+            var imageContainer = new StackPanel
+            {
+                Orientation = Avalonia.Layout.Orientation.Vertical,
+                Margin = new Thickness(0, 8, 0, 8),
+                HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch
+            };
+
+            // Create image control
+            var image = new Image
+            {
+                Stretch = Stretch.Uniform,
+                StretchDirection = StretchDirection.DownOnly,
+                HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Left,
+                VerticalAlignment = Avalonia.Layout.VerticalAlignment.Top,
+                // Max width will be constrained by parent, max height to 1/2 of reasonable list height
+                MaxHeight = 300, // Roughly 1/2 of a typical window height for list content
+                Margin = new Thickness(0, 0, 0, 4)
+            };
+
+            // Create a placeholder while loading
+            var loadingText = new TextBlock
+            {
+                Text = $"Loading image: {altText}...",
+                Foreground = Brushes.Gray,
+                FontStyle = FontStyle.Italic,
+                TextWrapping = TextWrapping.Wrap,
+                HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch
+            };
+
+            imageContainer.Children.Add(loadingText);
+
+            // Load image asynchronously
+            LoadImageAsync(image, imageUrl, altText, imageContainer, loadingText);
+
+            container.Children.Add(imageContainer);
+        }
+
+        private async void LoadImageAsync(Image imageControl, string imageUrl, string altText, Panel imageContainer, TextBlock loadingText)
+        {
+            try
+            {
+                using var httpClient = new System.Net.Http.HttpClient();
+                httpClient.Timeout = TimeSpan.FromSeconds(10); // Reasonable timeout
+
+                var imageBytes = await httpClient.GetByteArrayAsync(imageUrl);
+                
+                await Dispatcher.UIThread.InvokeAsync(() =>
+                {
+                    try
+                    {
+                        using var stream = new System.IO.MemoryStream(imageBytes);
+                        var bitmap = new Avalonia.Media.Imaging.Bitmap(stream);
+                        
+                        imageControl.Source = bitmap;
+                        
+                        // Remove loading text and add the image
+                        imageContainer.Children.Remove(loadingText);
+                        imageContainer.Children.Insert(0, imageControl);
+                        
+                        // Add alt text as caption if provided
+                        if (!string.IsNullOrEmpty(altText) && altText != "Image")
+                        {
+                            var caption = new TextBlock
+                            {
+                                Text = altText,
+                                Foreground = Brushes.LightGray,
+                                FontSize = 10,
+                                FontStyle = FontStyle.Italic,
+                                TextWrapping = TextWrapping.Wrap,
+                                HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Left,
+                                Margin = new Thickness(0, 2, 0, 0)
+                            };
+                            imageContainer.Children.Add(caption);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        ShowBrokenImage(imageContainer, loadingText, imageUrl, altText, $"Failed to decode image: {ex.Message}");
+                    }
+                });
+            }
+            catch (Exception ex)
+            {
+                await Dispatcher.UIThread.InvokeAsync(() =>
+                {
+                    ShowBrokenImage(imageContainer, loadingText, imageUrl, altText, $"Failed to load image: {ex.Message}");
+                });
+            }
+        }
+
+        private void ShowBrokenImage(Panel imageContainer, TextBlock loadingText, string imageUrl, string altText, string errorMessage)
+        {
+            // Remove loading text
+            imageContainer.Children.Remove(loadingText);
+            
+            // Create broken image indicator
+            var brokenImagePanel = new StackPanel
+            {
+                Orientation = Avalonia.Layout.Orientation.Horizontal,
+                Margin = new Thickness(0, 4, 0, 4)
+            };
+
+            // Broken image icon (using Unicode)
+            var brokenIcon = new TextBlock
+            {
+                Text = "🖼️",
+                FontSize = 16,
+                VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
+                Margin = new Thickness(0, 0, 8, 0)
+            };
+
+            // Image info
+            var imageInfo = new StackPanel
+            {
+                Orientation = Avalonia.Layout.Orientation.Vertical
+            };
+
+            var brokenText = new TextBlock
+            {
+                Text = $"[Broken Image: {altText}]",
+                Foreground = Brushes.Orange,
+                FontWeight = FontWeight.Bold,
+                TextWrapping = TextWrapping.Wrap
+            };
+
+            var urlText = new Button
+            {
+                Content = imageUrl,
+                Background = Brushes.Transparent,
+                BorderThickness = new Thickness(0),
+                Foreground = Brushes.LightBlue,
+                HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Left,
+                HorizontalContentAlignment = Avalonia.Layout.HorizontalAlignment.Left,
+                Padding = new Thickness(0),
+                Cursor = new Avalonia.Input.Cursor(Avalonia.Input.StandardCursorType.Hand)
+            };
+
+            urlText.Click += (s, e) => OpenUrl(imageUrl);
+
+            var errorText = new TextBlock
+            {
+                Text = errorMessage,
+                Foreground = Brushes.Gray,
+                FontSize = 10,
+                FontStyle = FontStyle.Italic,
+                TextWrapping = TextWrapping.Wrap,
+                Margin = new Thickness(0, 2, 0, 0)
+            };
+
+            imageInfo.Children.Add(brokenText);
+            imageInfo.Children.Add(urlText);
+            imageInfo.Children.Add(errorText);
+
+            brokenImagePanel.Children.Add(brokenIcon);
+            brokenImagePanel.Children.Add(imageInfo);
+
+            imageContainer.Children.Add(brokenImagePanel);
+        }
+
+        private void ProcessTextWithImages(Panel container, string text)
+        {
+            // Regex to match Markdown-style images: ![alt](url)
+            var imageRegex = new System.Text.RegularExpressions.Regex(@"!\[([^\]]*)\]\(([^)]+)\)");
+            var matches = imageRegex.Matches(text);
+
+            if (matches.Count == 0)
+            {
+                // No images found, just add regular text
+                var textBlock = new TextBlock
+                {
+                    Text = text,
+                    TextWrapping = TextWrapping.Wrap,
+                    Foreground = Brushes.White,
+                    HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch,
+                    MaxWidth = double.PositiveInfinity
+                };
+                container.Children.Add(textBlock);
+                return;
+            }
+
+            // Process text with images
+            int lastIndex = 0;
+            
+            foreach (System.Text.RegularExpressions.Match match in matches)
+            {
+                // Add text before this image (if any)
+                if (match.Index > lastIndex)
+                {
+                    var beforeText = text.Substring(lastIndex, match.Index - lastIndex);
+                    if (!string.IsNullOrWhiteSpace(beforeText))
+                    {
+                        var textBlock = new TextBlock
+                        {
+                            Text = beforeText,
+                            TextWrapping = TextWrapping.Wrap,
+                            Foreground = Brushes.White,
+                            HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch,
+                            MaxWidth = double.PositiveInfinity
+                        };
+                        container.Children.Add(textBlock);
+                    }
+                }
+
+                // Add the image
+                var altText = match.Groups[1].Value;
+                var imageUrl = match.Groups[2].Value;
+                
+                if (!string.IsNullOrEmpty(imageUrl))
+                {
+                    CreateImageControl(container, imageUrl, altText);
+                }
+
+                lastIndex = match.Index + match.Length;
+            }
+
+            // Add any remaining text after the last image
+            if (lastIndex < text.Length)
+            {
+                var afterText = text.Substring(lastIndex);
+                if (!string.IsNullOrWhiteSpace(afterText))
+                {
+                    var textBlock = new TextBlock
+                    {
+                        Text = afterText,
+                        TextWrapping = TextWrapping.Wrap,
+                        Foreground = Brushes.White,
+                        HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch,
+                        MaxWidth = double.PositiveInfinity
+                    };
+                    container.Children.Add(textBlock);
+                }
             }
         }
     }
