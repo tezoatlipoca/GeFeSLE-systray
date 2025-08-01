@@ -113,9 +113,16 @@ namespace GeFeSLE.Controls
                 switch (child.NodeType)
                 {
                     case HtmlNodeType.Text:
-                        var text = child.InnerText?.Trim();
+                        var text = child.InnerText;
                         if (!string.IsNullOrEmpty(text))
                         {
+                            // Don't trim text nodes unless they're completely whitespace
+                            // This preserves important spacing like around parentheses
+                            if (string.IsNullOrWhiteSpace(text))
+                            {
+                                continue; // Skip whitespace-only nodes
+                            }
+                            
                             // Check if we're in a code context by looking at parent elements
                             bool isInCodeContext = IsInCodeContext(child);
                             ProcessTextWithSpecialElements(container, text, isInCodeContext);
@@ -293,13 +300,28 @@ namespace GeFeSLE.Controls
                     break;
 
                 case "div":
-                    var divPanel = new StackPanel 
-                    { 
-                        Orientation = Avalonia.Layout.Orientation.Vertical,
-                        HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch
-                    };
-                    ProcessHtmlNode(element, divPanel);
-                    container.Children.Add(divPanel);
+                    // Special handling for importattribution divs to prevent line breaks around parentheses
+                    var divClass = element.GetAttributeValue("class", "");
+                    if (divClass.Contains("importattribution"))
+                    {
+                        // Process the entire text content as one unit to preserve formatting
+                        var fullText = element.InnerText;
+                        if (!string.IsNullOrWhiteSpace(fullText))
+                        {
+                            bool isInCodeContext = IsInCodeContext(element);
+                            ProcessTextWithSpecialElements(container, fullText, isInCodeContext);
+                        }
+                    }
+                    else
+                    {
+                        var divPanel = new StackPanel 
+                        { 
+                            Orientation = Avalonia.Layout.Orientation.Vertical,
+                            HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch
+                        };
+                        ProcessHtmlNode(element, divPanel);
+                        container.Children.Add(divPanel);
+                    }
                     break;
 
                 case "span":
@@ -340,12 +362,8 @@ namespace GeFeSLE.Controls
                     HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch
                 };
 
-                // Process the item text for links and formatting
-                var itemText = item.InnerText?.Trim() ?? "";
-                if (!string.IsNullOrEmpty(itemText))
-                {
-                    ProcessTextWithSpecialElements(itemContentPanel, itemText, false);
-                }
+                // Process the list item's child nodes properly instead of using InnerText
+                ProcessHtmlNode(item, itemContentPanel);
 
                 itemPanel.Children.Add(bulletText);
                 itemPanel.Children.Add(itemContentPanel);
@@ -380,12 +398,8 @@ namespace GeFeSLE.Controls
                     HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch
                 };
 
-                // Process the item text for links and formatting
-                var itemText = item.InnerText?.Trim() ?? "";
-                if (!string.IsNullOrEmpty(itemText))
-                {
-                    ProcessTextWithSpecialElements(itemContentPanel, itemText, false);
-                }
+                // Process the list item's child nodes properly instead of using InnerText
+                ProcessHtmlNode(item, itemContentPanel);
 
                 itemPanel.Children.Add(numberText);
                 itemPanel.Children.Add(itemContentPanel);
@@ -669,7 +683,10 @@ namespace GeFeSLE.Controls
                 // Markdown links: [text](url)
                 patterns.Add((new Regex(@"(?<!!)\[([^\]]+)\]\(([^)]+)\)"), "markdown-link"));
                 
-                // URLs starting with http/https - improved pattern to include more characters
+                // URLs in parentheses: (https://example.com)
+                patterns.Add((new Regex(@"\(https?://[^\s<>\[\]()]+\)"), "url-in-parens"));
+                
+                // Regular URLs starting with http/https
                 patterns.Add((new Regex(@"(?<!\]\()https?://[^\s<>\[\]()]*[^\s<>\[\]().,;!?]"), "url"));
                 
                 // Markdown bold: **text**
@@ -701,6 +718,13 @@ namespace GeFeSLE.Controls
                 return;
             }
 
+            // Create a WrapPanel to contain all text elements inline
+            var wrapPanel = new WrapPanel
+            {
+                Orientation = Avalonia.Layout.Orientation.Horizontal,
+                HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch
+            };
+
             // Process text with special elements
             int lastIndex = 0;
             
@@ -716,7 +740,7 @@ namespace GeFeSLE.Controls
                     var beforeText = text.Substring(lastIndex, start - lastIndex);
                     if (!string.IsNullOrWhiteSpace(beforeText))
                     {
-                        AddTextBlock(container, beforeText);
+                        AddInlineTextBlock(wrapPanel, beforeText);
                     }
                 }
 
@@ -737,23 +761,34 @@ namespace GeFeSLE.Controls
                         var linkUrl = match.Groups[2].Value;
                         if (!string.IsNullOrEmpty(linkUrl))
                         {
-                            CreateLinkButton(container, linkUrl, linkText);
+                            CreateInlineLinkButton(wrapPanel, linkUrl, linkText);
                         }
                         break;
 
+                    case "url-in-parens":
+                        var fullMatch = match.Value; // e.g., "(https://mas.to)"
+                        var url = fullMatch.Substring(1, fullMatch.Length - 2); // Remove parentheses
+                        // Add opening parenthesis as text
+                        AddInlineTextBlock(wrapPanel, "(");
+                        // Add URL as link
+                        CreateInlineLinkButton(wrapPanel, url, url);
+                        // Add closing parenthesis as text
+                        AddInlineTextBlock(wrapPanel, ")");
+                        break;
+
                     case "url":
-                        var url = match.Value;
-                        CreateLinkButton(container, url, url);
+                        var url2 = match.Value;
+                        CreateInlineLinkButton(wrapPanel, url2, url2);
                         break;
 
                     case "markdown-bold":
                         var boldText = match.Groups[1].Value;
-                        CreateFormattedTextBlock(container, boldText, FontWeight.Bold, FontStyle.Normal);
+                        CreateInlineFormattedTextBlock(wrapPanel, boldText, FontWeight.Bold, FontStyle.Normal);
                         break;
 
                     case "markdown-italic":
                         var italicText = match.Groups[1].Value;
-                        CreateFormattedTextBlock(container, italicText, FontWeight.Normal, FontStyle.Italic);
+                        CreateInlineFormattedTextBlock(wrapPanel, italicText, FontWeight.Normal, FontStyle.Italic);
                         break;
                 }
 
@@ -766,8 +801,14 @@ namespace GeFeSLE.Controls
                 var afterText = text.Substring(lastIndex);
                 if (!string.IsNullOrWhiteSpace(afterText))
                 {
-                    AddTextBlock(container, afterText);
+                    AddInlineTextBlock(wrapPanel, afterText);
                 }
+            }
+
+            // Only add the wrap panel if it has children
+            if (wrapPanel.Children.Count > 0)
+            {
+                container.Children.Add(wrapPanel);
             }
         }
 
@@ -837,6 +878,60 @@ namespace GeFeSLE.Controls
                 parent = parent.ParentNode;
             }
             return false;
+        }
+
+        private void AddInlineTextBlock(Panel container, string text)
+        {
+            var textBlock = new TextBlock
+            {
+                Text = text,
+                TextWrapping = TextWrapping.Wrap,
+                Foreground = Brushes.White,
+                VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
+                Margin = new Thickness(0, 0, 0, 0)
+            };
+            container.Children.Add(textBlock);
+        }
+
+        private void CreateInlineLinkButton(Panel container, string url, string displayText)
+        {
+            var link = new Button
+            {
+                Background = Brushes.Transparent,
+                BorderThickness = new Thickness(0),
+                Foreground = Brushes.LightBlue,
+                HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Left,
+                HorizontalContentAlignment = Avalonia.Layout.HorizontalAlignment.Left,
+                VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
+                Padding = new Thickness(0),
+                Margin = new Thickness(0, 0, 0, 0),
+                Cursor = new Avalonia.Input.Cursor(Avalonia.Input.StandardCursorType.Hand),
+                Content = new TextBlock
+                {
+                    Text = displayText,
+                    TextWrapping = TextWrapping.NoWrap,
+                    Foreground = Brushes.LightBlue,
+                    TextDecorations = TextDecorations.Underline
+                }
+            };
+            
+            link.Click += (s, e) => OpenUrl(url);
+            container.Children.Add(link);
+        }
+
+        private void CreateInlineFormattedTextBlock(Panel container, string text, FontWeight weight, FontStyle style)
+        {
+            var textBlock = new TextBlock
+            {
+                Text = text,
+                TextWrapping = TextWrapping.Wrap,
+                Foreground = Brushes.White,
+                FontWeight = weight,
+                FontStyle = style,
+                VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
+                Margin = new Thickness(0, 0, 0, 0)
+            };
+            container.Children.Add(textBlock);
         }
     }
 }
