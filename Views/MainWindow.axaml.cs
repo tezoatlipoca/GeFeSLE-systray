@@ -1,4 +1,5 @@
 using System;
+using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
@@ -185,35 +186,61 @@ public partial class MainWindow : Window
             var itemIndex = viewModel.ListItems.IndexOf(item);
             if (itemIndex < 0) return;
 
-            // Get the container for this item
-            var container = listBox.ContainerFromIndex(itemIndex);
-            if (container is ListBoxItem listBoxItem)
+            // Store the current scroll position and item information before UI updates
+            var currentScrollOffset = scrollViewer.Offset.Y;
+            var viewportHeight = scrollViewer.Viewport.Height;
+            
+            // Schedule the scroll adjustment after the UI has updated
+            Avalonia.Threading.Dispatcher.UIThread.Post(async () =>
             {
-                // Store the item's current top position relative to the scroll viewer
-                var itemBounds = listBoxItem.Bounds;
-                var currentScrollOffset = scrollViewer.Offset.Y;
+                // Give the UI time to fully update the layout
+                await Task.Delay(50);
                 
-                // Calculate the item's absolute position in the scroll content
-                var itemTopInScrollContent = itemBounds.Y;
-                
-                // Calculate the item's current position relative to the visible area
-                var itemTopInViewport = itemTopInScrollContent - currentScrollOffset;
-                
-                // If the item is expanding and we want to keep its header visible at the same position
-                if (item.IsExpanded)
+                // Re-get the container after layout update
+                var container = listBox.ContainerFromIndex(itemIndex);
+                if (container is ListBoxItem listBoxItem)
                 {
-                    // Keep the item header at its current position in the viewport
-                    // This means the scroll offset should remain where the item header is currently visible
-                    var targetScrollOffset = Math.Max(0, itemTopInScrollContent - itemTopInViewport);
-                    scrollViewer.Offset = scrollViewer.Offset.WithY(targetScrollOffset);
+                    // Get the updated bounds after expansion/collapse
+                    var itemBounds = listBoxItem.Bounds;
+                    var itemTopInScrollContent = itemBounds.Y;
+                    
+                    // Calculate where the item's top was relative to the viewport before the change
+                    var itemTopInViewportBefore = itemTopInScrollContent - currentScrollOffset;
+                    
+                    if (item.IsExpanded)
+                    {
+                        // When expanding: keep the item header at the same viewport position
+                        // This prevents the item from jumping around during expansion
+                        var targetScrollOffset = Math.Max(0, itemTopInScrollContent - itemTopInViewportBefore);
+                        
+                        // Ensure we don't scroll past the content
+                        var maxScrollOffset = Math.Max(0, scrollViewer.Extent.Height - viewportHeight);
+                        targetScrollOffset = Math.Min(targetScrollOffset, maxScrollOffset);
+                        
+                        scrollViewer.Offset = scrollViewer.Offset.WithY(targetScrollOffset);
+                    }
+                    else
+                    {
+                        // When collapsing: keep the item visible but don't jump around
+                        // Only adjust if the item would be out of view
+                        var itemBottomInViewport = itemTopInViewportBefore + itemBounds.Height;
+                        
+                        if (itemTopInViewportBefore < 0)
+                        {
+                            // Item top is above viewport, scroll to show it
+                            var targetScrollOffset = Math.Max(0, itemTopInScrollContent - 20); // 20px padding
+                            scrollViewer.Offset = scrollViewer.Offset.WithY(targetScrollOffset);
+                        }
+                        else if (itemBottomInViewport > viewportHeight)
+                        {
+                            // Item bottom is below viewport, scroll to show it
+                            var targetScrollOffset = Math.Max(0, itemTopInScrollContent + itemBounds.Height - viewportHeight + 20);
+                            scrollViewer.Offset = scrollViewer.Offset.WithY(targetScrollOffset);
+                        }
+                        // If item is already fully visible, don't adjust scroll position
+                    }
                 }
-                else
-                {
-                    // When collapsing, ensure the item is still visible
-                    var targetScrollOffset = Math.Max(0, itemTopInScrollContent - 20); // 20px padding from top
-                    scrollViewer.Offset = scrollViewer.Offset.WithY(targetScrollOffset);
-                }
-            }
+            }, Avalonia.Threading.DispatcherPriority.Background);
         }
         catch
         {
