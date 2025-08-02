@@ -192,7 +192,7 @@ public partial class MainWindowViewModel : ViewModelBase
                         // Clean up any null tags
                         item.Tags = item.Tags.Where(tag => !string.IsNullOrEmpty(tag)).ToList();
                         
-                        // Ensure item starts collapsed
+                        // Ensure item starts collapsed (no expansion state retention)
                         item.IsExpanded = false;
                         
                         // Extract image URLs from this item's content
@@ -353,10 +353,19 @@ public partial class MainWindowViewModel : ViewModelBase
     {
         if (item != null)
         {
-            // Simply toggle the expansion state - no auto-collapse logic
+            // First, collapse all other items
+            foreach (var listItem in ListItems)
+            {
+                if (listItem != item && listItem.IsExpanded)
+                {
+                    listItem.IsExpanded = false;
+                }
+            }
+            
+            // Then toggle the selected item
             item.IsExpanded = !item.IsExpanded;
             
-            DBg.d(LogLevel.Debug, $"{(item.IsExpanded ? "Expanded" : "Collapsed")} item {item.Id}");
+            DBg.d(LogLevel.Debug, $"{(item.IsExpanded ? "Expanded" : "Collapsed")} item {item.Id} (all others collapsed)");
             
             // Notify the view to handle scroll position preservation
             // Use Dispatcher to ensure UI has updated before scroll adjustment

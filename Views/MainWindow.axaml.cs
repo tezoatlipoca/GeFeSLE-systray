@@ -189,17 +189,13 @@ public partial class MainWindow : Window
 
         try
         {
-            var scrollViewer = this.FindControl<ScrollViewer>("ItemsScrollViewer");
             var listBox = this.GetVisualDescendants().OfType<ListBox>().FirstOrDefault();
-            
-            if (scrollViewer == null || listBox == null) return;
+            if (listBox == null) return;
 
-            var initialScrollY = scrollViewer.Offset.Y;
-            
-            DBg.d(LogLevel.Debug, $"Moving item {toggledItem.Id} to top of viewport from scroll position {initialScrollY:F1}");
+            DBg.d(LogLevel.Debug, $"Bringing item {toggledItem.Id} into view using BringIntoView()");
 
             // Wait for the layout to update after expansion/collapse
-            await Task.Delay(100);
+            await Task.Delay(150);
 
             // Find the container for the toggled item
             var itemContainer = FindItemContainer(listBox, toggledItem);
@@ -209,29 +205,14 @@ public partial class MainWindow : Window
                 return;
             }
 
-            // Get the current position of the item container
-            var itemTop = itemContainer.TranslatePoint(new Point(0, 0), scrollViewer);
-            if (!itemTop.HasValue) 
-            {
-                DBg.d(LogLevel.Warning, $"Could not translate item {toggledItem.Id} position");
-                return;
-            }
-
-            // Simple: move the toggled item to the top of the viewport
-            var newScrollY = itemTop.Value.Y;
+            // Use BringIntoView to automatically scroll to the item - this is like an HTML bookmark!
+            itemContainer.BringIntoView();
             
-            // Clamp to valid scroll range
-            var maxScroll = Math.Max(0, scrollViewer.ScrollBarMaximum.Y);
-            newScrollY = Math.Max(0, Math.Min(maxScroll, newScrollY));
-            
-            // Apply the scroll change
-            scrollViewer.Offset = scrollViewer.Offset.WithY(newScrollY);
-            
-            DBg.d(LogLevel.Debug, $"Moved item {toggledItem.Id} to top: {initialScrollY:F1} -> {newScrollY:F1}px");
+            DBg.d(LogLevel.Debug, $"Successfully brought item {toggledItem.Id} into view");
         }
         catch (Exception ex)
         {
-            DBg.d(LogLevel.Warning, $"Failed to move item to top: {ex.Message}");
+            DBg.d(LogLevel.Warning, $"Failed to bring item into view: {ex.Message}");
         }
     }
 
