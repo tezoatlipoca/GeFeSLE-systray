@@ -17,6 +17,9 @@ public partial class MainWindowViewModel : ViewModelBase
     private readonly SettingsService _settingsService;
     private readonly ImageCacheService _imageCacheService;
     
+    // Dictionary to track expansion state of items across list redraws
+    private readonly Dictionary<int, bool> _itemExpansionStates = new();
+    
     [ObservableProperty]
     private ObservableCollection<GeList> availableLists = new();
     
@@ -192,8 +195,8 @@ public partial class MainWindowViewModel : ViewModelBase
                         // Clean up any null tags
                         item.Tags = item.Tags.Where(tag => !string.IsNullOrEmpty(tag)).ToList();
                         
-                        // Ensure item starts collapsed (no expansion state retention)
-                        item.IsExpanded = false;
+                        // Restore expansion state if it was previously expanded
+                        item.IsExpanded = _itemExpansionStates.ContainsKey(item.Id) && _itemExpansionStates[item.Id];
                         
                         // Extract image URLs from this item's content
                         var itemImageUrls = await _imageCacheService.ExtractImageUrlsFromContentAsync(item.Comment);
@@ -316,6 +319,12 @@ public partial class MainWindowViewModel : ViewModelBase
     {
         if (value != null)
         {
+            // Clear expansion states when switching to a different list
+            if (selectedList?.Id != value.Id)
+            {
+                _itemExpansionStates.Clear();
+            }
+            
             // Persist the selected list ID
             _settingsService.UpdateSelectedList(value.Id);
             
@@ -353,19 +362,13 @@ public partial class MainWindowViewModel : ViewModelBase
     {
         if (item != null)
         {
-            // First, collapse all other items
-            foreach (var listItem in ListItems)
-            {
-                if (listItem != item && listItem.IsExpanded)
-                {
-                    listItem.IsExpanded = false;
-                }
-            }
-            
-            // Then toggle the selected item
+            // Simply toggle the selected item (allow multiple expansions)
             item.IsExpanded = !item.IsExpanded;
             
-            DBg.d(LogLevel.Debug, $"{(item.IsExpanded ? "Expanded" : "Collapsed")} item {item.Id} (all others collapsed)");
+            // Store the expansion state for retention across list redraws
+            _itemExpansionStates[item.Id] = item.IsExpanded;
+            
+            DBg.d(LogLevel.Debug, $"{(item.IsExpanded ? "Expanded" : "Collapsed")} item {item.Id}");
             
             // Notify the view to handle scroll position preservation
             // Use Dispatcher to ensure UI has updated before scroll adjustment
