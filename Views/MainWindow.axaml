@@ -423,15 +423,14 @@
                                                            FontWeight="Medium"/>
                                             </Button>
                                             
-                                            <!-- Expansion button - ONLY this area triggers expand/collapse -->
+                                            <!-- Expansion button - ALWAYS visible to access action buttons -->
                                             <Button Grid.Column="7"
                                                     Command="{Binding DataContext.ToggleItemExpansionCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                                     CommandParameter="{Binding}"
                                                     Background="Transparent"
                                                     BorderThickness="0"
                                                     Padding="8,4"
-                                                    VerticalAlignment="Center"
-                                                    IsVisible="{Binding Comment, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                                                    VerticalAlignment="Center">
                                                 <TextBlock Text="{Binding IsExpanded, Converter={x:Static vm:BoolToExpanderTextConverter.Instance}}"
                                                            Foreground="LightBlue"
                                                            FontSize="12"/>
