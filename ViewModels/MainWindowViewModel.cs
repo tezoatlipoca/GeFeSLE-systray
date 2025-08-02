@@ -74,6 +74,12 @@ public partial class MainWindowViewModel : ViewModelBase
     [ObservableProperty]
     private string editItemComment = string.Empty;
     
+    [ObservableProperty]
+    private string editItemTags = string.Empty;
+    
+    [ObservableProperty]
+    private string editValidationError = string.Empty;
+    
     // Store all items (unfiltered) for search functionality
     private List<GeListItem> _allItems = new List<GeListItem>();
     
@@ -436,6 +442,7 @@ public partial class MainWindowViewModel : ViewModelBase
             CurrentEditItem = item;
             EditItemName = item.RawName ?? item.Name ?? string.Empty;
             EditItemComment = item.RawComment ?? item.Comment ?? string.Empty;
+            EditItemTags = ConvertTagsToString(item.Tags ?? new List<string>());
             EditPanelVisible = true;
         }
     }
@@ -449,6 +456,7 @@ public partial class MainWindowViewModel : ViewModelBase
             CurrentEditItem = null;
             EditItemName = string.Empty;
             EditItemComment = string.Empty;
+            EditItemTags = string.Empty;
             EditPanelVisible = true;
         }
     }
@@ -463,6 +471,8 @@ public partial class MainWindowViewModel : ViewModelBase
             CurrentEditItem = null;
             EditItemName = string.Empty;
             EditItemComment = string.Empty;
+            EditItemTags = string.Empty;
+            EditValidationError = string.Empty;
         }
     }
     
@@ -471,6 +481,21 @@ public partial class MainWindowViewModel : ViewModelBase
     {
         try
         {
+            // Clear any previous validation errors
+            EditValidationError = string.Empty;
+            
+            // Validate tags first
+            var tagsValidationError = ValidateTagsString(EditItemTags);
+            if (!string.IsNullOrEmpty(tagsValidationError))
+            {
+                EditValidationError = tagsValidationError;
+                DBg.d(LogLevel.Error, $"Tags validation failed: {tagsValidationError}");
+                return;
+            }
+            
+            // Parse tags
+            var parsedTags = ParseTagsFromString(EditItemTags);
+            
             if (IsAddingNewItem)
             {
                 // Adding a new item
@@ -480,7 +505,7 @@ public partial class MainWindowViewModel : ViewModelBase
                     return;
                 }
                 
-                    // Create new item object
+                // Create new item object
                 var newItem = new GeListItem
                 {
                     Name = EditItemName,
@@ -491,7 +516,7 @@ public partial class MainWindowViewModel : ViewModelBase
                     CreatedDate = DateTime.Now,
                     ModifiedDate = DateTime.Now,
                     IsComplete = false,
-                    Tags = new List<string>()
+                    Tags = parsedTags
                 };
                 
                 // Save to server using POST endpoint
@@ -524,6 +549,7 @@ public partial class MainWindowViewModel : ViewModelBase
                 CurrentEditItem.RawComment = EditItemComment;
                 CurrentEditItem.Name = EditItemName; // For display
                 CurrentEditItem.Comment = EditItemComment; // For display (will be processed by RichHtmlControl)
+                CurrentEditItem.Tags = parsedTags; // Update tags
                 CurrentEditItem.ModifiedDate = DateTime.Now; // Update modification date
                 
                 // Save to server using PUT endpoint
@@ -592,6 +618,94 @@ public partial class MainWindowViewModel : ViewModelBase
                 DBg.d(LogLevel.Error, $"Failed to open URL {item.Name}: {ex.Message}");
             }
         }
+    }
+    
+    // Helper methods for tag parsing and validation
+    private List<string> ParseTagsFromString(string tagsText)
+    {
+        if (string.IsNullOrWhiteSpace(tagsText))
+            return new List<string>();
+            
+        var tags = new List<string>();
+        var currentTag = "";
+        bool inQuotes = false;
+        
+        for (int i = 0; i < tagsText.Length; i++)
+        {
+            char c = tagsText[i];
+            
+            if (c == '"')
+            {
+                inQuotes = !inQuotes;
+            }
+            else if (c == ' ' && !inQuotes)
+            {
+                // End of a tag
+                if (!string.IsNullOrWhiteSpace(currentTag))
+                {
+                    tags.Add(currentTag.Trim());
+                    currentTag = "";
+                }
+            }
+            else
+            {
+                currentTag += c;
+            }
+        }
+        
+        // Add the last tag if there is one
+        if (!string.IsNullOrWhiteSpace(currentTag))
+        {
+            tags.Add(currentTag.Trim());
+        }
+        
+        return tags;
+    }
+    
+    private string ValidateTagsString(string tagsText)
+    {
+        if (string.IsNullOrWhiteSpace(tagsText))
+            return ""; // Empty is valid
+            
+        // Check for unmatched quotes
+        int quoteCount = 0;
+        foreach (char c in tagsText)
+        {
+            if (c == '"')
+                quoteCount++;
+        }
+        
+        if (quoteCount % 2 != 0)
+        {
+            return "Error: Unmatched quote marks in tags. Each multi-word tag must be enclosed in paired quotes.";
+        }
+        
+        return ""; // Valid
+    }
+    
+    private string ConvertTagsToString(List<string> tags)
+    {
+        if (tags == null || tags.Count == 0)
+            return "";
+            
+        var result = new List<string>();
+        foreach (var tag in tags)
+        {
+            if (string.IsNullOrWhiteSpace(tag))
+                continue;
+                
+            // If tag contains spaces, wrap in quotes
+            if (tag.Contains(' '))
+            {
+                result.Add($"\"{tag}\"");
+            }
+            else
+            {
+                result.Add(tag);
+            }
+        }
+        
+        return string.Join(" ", result);
     }
     
     [RelayCommand]

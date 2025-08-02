@@ -648,8 +648,33 @@
                                          MinHeight="200"
                                          ScrollViewer.VerticalScrollBarVisibility="Auto"/>
                             </StackPanel>
+                            
+                            <!-- Tags field -->
+                            <StackPanel Spacing="8">
+                                <TextBlock Text="Tags:" FontWeight="Bold" Foreground="White"/>
+                                <TextBlock Text="Separate tags with spaces. Use &quot;quotes&quot; for multi-word tags." 
+                                           FontSize="10" 
+                                           Foreground="LightGray" 
+                                           FontStyle="Italic"/>
+                                <TextBox Text="{Binding EditItemTags}" 
+                                         AcceptsReturn="false"
+                                         TextWrapping="Wrap"
+                                         MinHeight="30"
+                                         Watermark="Example: urgent &quot;bug fix&quot; frontend"/>
+                            </StackPanel>
                         </StackPanel>
                     </ScrollViewer>
+                    
+                    <!-- Validation error display -->
+                    <Border IsVisible="{Binding EditValidationError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                            Background="DarkRed"
+                            Padding="10,5"
+                            Margin="20,0">
+                        <TextBlock Text="{Binding EditValidationError}"
+                                   Foreground="White"
+                                   FontWeight="Bold"
+                                   TextWrapping="Wrap"/>
+                    </Border>
                     
                     <!-- Footer with action buttons -->
                     <Border Grid.Row="2" 
