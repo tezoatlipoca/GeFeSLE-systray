@@ -63,6 +63,9 @@ public partial class MainWindowViewModel : ViewModelBase
     private bool editPanelVisible = false;
     
     [ObservableProperty]
+    private bool isAddingNewItem = false;
+    
+    [ObservableProperty]
     private GeListItem? currentEditItem = null;
     
     [ObservableProperty]
@@ -429,9 +432,23 @@ public partial class MainWindowViewModel : ViewModelBase
     {
         if (item != null)
         {
+            IsAddingNewItem = false;
             CurrentEditItem = item;
             EditItemName = item.RawName ?? item.Name ?? string.Empty;
             EditItemComment = item.RawComment ?? item.Comment ?? string.Empty;
+            EditPanelVisible = true;
+        }
+    }
+    
+    [RelayCommand]
+    private void AddNewItem()
+    {
+        if (SelectedList != null)
+        {
+            IsAddingNewItem = true;
+            CurrentEditItem = null;
+            EditItemName = string.Empty;
+            EditItemComment = string.Empty;
             EditPanelVisible = true;
         }
     }
@@ -442,6 +459,7 @@ public partial class MainWindowViewModel : ViewModelBase
         EditPanelVisible = !EditPanelVisible;
         if (!EditPanelVisible)
         {
+            IsAddingNewItem = false;
             CurrentEditItem = null;
             EditItemName = string.Empty;
             EditItemComment = string.Empty;
@@ -451,41 +469,87 @@ public partial class MainWindowViewModel : ViewModelBase
     [RelayCommand]
     private async Task SaveEditItem()
     {
-        if (CurrentEditItem == null)
-            return;
-            
         try
         {
-            // Update the item with new values
-            CurrentEditItem.RawName = EditItemName;
-            CurrentEditItem.RawComment = EditItemComment;
-            CurrentEditItem.Name = EditItemName; // For display
-            CurrentEditItem.Comment = EditItemComment; // For display (will be processed by RichHtmlControl)
-            CurrentEditItem.ModifiedDate = DateTime.Now; // Update modification date
-            
-            // Save to server using PUT endpoint
-            bool success = await _apiClient.UpdateItemAsync(CurrentEditItem);
-            
-            if (success)
+            if (IsAddingNewItem)
             {
-                DBg.d(LogLevel.Debug, $"Successfully saved changes to item {CurrentEditItem.Id}");
+                // Adding a new item
+                if (SelectedList == null)
+                {
+                    DBg.d(LogLevel.Error, "Cannot add item: no list selected");
+                    return;
+                }
                 
-                // Close the edit panel
-                ToggleEditPanel();
+                    // Create new item object
+                var newItem = new GeListItem
+                {
+                    Name = EditItemName,
+                    Comment = EditItemComment,
+                    RawName = EditItemName,
+                    RawComment = EditItemComment,
+                    ListId = SelectedList.Id,
+                    CreatedDate = DateTime.Now,
+                    ModifiedDate = DateTime.Now,
+                    IsComplete = false,
+                    Tags = new List<string>()
+                };
                 
-                // Optionally refresh the display to ensure we have the latest data
-                // Note: This will preserve the current search/filter state
-                ApplySearchFilters();
+                // Save to server using POST endpoint
+                bool success = await _apiClient.AddItemAsync(SelectedList.Id, newItem);
+                
+                if (success)
+                {
+                    DBg.d(LogLevel.Debug, $"Successfully added new item to list {SelectedList.Id}");
+                    
+                    // Close the edit panel
+                    ToggleEditPanel();
+                    
+                    // Refresh the items list to show the new item
+                    await LoadListItemsAsync(SelectedList.Id);
+                }
+                else
+                {
+                    DBg.d(LogLevel.Error, $"Failed to add new item to list {SelectedList.Id} - server returned error");
+                    // TODO: Show error message to user in the UI
+                }
             }
             else
             {
-                DBg.d(LogLevel.Error, $"Failed to save changes to item {CurrentEditItem.Id} - server returned error");
-                // TODO: Show error message to user in the UI
+                // Editing existing item
+                if (CurrentEditItem == null)
+                    return;
+                    
+                // Update the item with new values
+                CurrentEditItem.RawName = EditItemName;
+                CurrentEditItem.RawComment = EditItemComment;
+                CurrentEditItem.Name = EditItemName; // For display
+                CurrentEditItem.Comment = EditItemComment; // For display (will be processed by RichHtmlControl)
+                CurrentEditItem.ModifiedDate = DateTime.Now; // Update modification date
+                
+                // Save to server using PUT endpoint
+                bool success = await _apiClient.UpdateItemAsync(CurrentEditItem);
+                
+                if (success)
+                {
+                    DBg.d(LogLevel.Debug, $"Successfully saved changes to item {CurrentEditItem.Id}");
+                    
+                    // Close the edit panel
+                    ToggleEditPanel();
+                    
+                    // Optionally refresh the display to ensure we have the latest data
+                    // Note: This will preserve the current search/filter state
+                    ApplySearchFilters();
+                }
+                else
+                {
+                    DBg.d(LogLevel.Error, $"Failed to save changes to item {CurrentEditItem.Id} - server returned error");
+                    // TODO: Show error message to user in the UI
+                }
             }
         }
         catch (Exception ex)
         {
-            DBg.d(LogLevel.Error, $"Failed to save item changes: {ex.Message}");
+            DBg.d(LogLevel.Error, $"Failed to save item: {ex.Message}");
             // TODO: Show error message to user in the UI
         }
     }

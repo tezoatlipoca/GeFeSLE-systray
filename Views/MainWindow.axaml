@@ -119,8 +119,8 @@
         <Grid Margin="10" RowDefinitions="Auto,Auto,Auto,Auto,*,Auto" MinHeight="400">
             <!-- Row 0: Lists Section -->
             <StackPanel Grid.Row="0" Spacing="8" Margin="0,0,0,10">
-                <!-- Dropdown, Refresh Button, Metadata Panel Toggle Row, and Settings Cog -->
-                <Grid ColumnDefinitions="Auto,Auto,Auto,Auto,*,Auto">
+                <!-- Dropdown, Refresh Button, Add New Item Button, Metadata Panel Toggle Row, and Settings Cog -->
+                <Grid ColumnDefinitions="Auto,Auto,Auto,Auto,Auto,*,Auto">
                     <ComboBox Grid.Column="0"
                               ItemsSource="{Binding AvailableLists}" 
                               SelectedItem="{Binding SelectedList}"
@@ -134,8 +134,19 @@
                             MinWidth="80"
                             Margin="0,0,10,0"/>
                     
-                    <!-- Metadata Panel Toggle Button moved here -->
+                    <!-- Add New Item button -->
                     <Button Grid.Column="2"
+                            Content="+ Add Item"
+                            Command="{Binding AddNewItemCommand}"
+                            IsVisible="{Binding SelectedList, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                            Background="DarkGreen"
+                            Foreground="White"
+                            Padding="8,4"
+                            BorderThickness="0"
+                            Margin="0,0,10,0"/>
+                    
+                    <!-- Metadata Panel Toggle Button moved here -->
+                    <Button Grid.Column="3"
                             Command="{Binding ToggleMetadataPanelCommand}" 
                             MinWidth="120"
                             IsVisible="{Binding SelectedList, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
@@ -150,17 +161,17 @@
                     </Button>
                     
                     <!-- Combined status field moved here -->
-                    <TextBlock Grid.Column="3"
+                    <TextBlock Grid.Column="4"
                                Text="{Binding CombinedStatus}" 
                                IsVisible="{Binding CombinedStatus, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
                                Foreground="Orange" FontSize="11" FontStyle="Italic"
                                VerticalAlignment="Center"
                                Margin="0,0,10,0"/>
                     
-                    <!-- Spacer column (Grid.Column="4" with * width) -->
+                    <!-- Spacer column (Grid.Column="5" with * width) -->
                     
                     <!-- Settings Cog Button (upper right) -->
-                    <Button Grid.Column="5"
+                    <Button Grid.Column="6"
                             Command="{Binding ToggleSettingsPanelCommand}" 
                             Background="Transparent" 
                             BorderThickness="0"
@@ -575,11 +586,16 @@
                             Padding="15,10">
                         <Grid ColumnDefinitions="*,Auto">
                             <TextBlock Grid.Column="0" 
-                                       Text="Edit Item" 
                                        FontWeight="Bold" 
                                        FontSize="16" 
                                        Foreground="White"
-                                       VerticalAlignment="Center"/>
+                                       VerticalAlignment="Center">
+                                <TextBlock.Text>
+                                    <MultiBinding StringFormat="{}{0} Item">
+                                        <Binding Path="IsAddingNewItem" Converter="{x:Static vm:BoolToAddEditTextConverter.Instance}"/>
+                                    </MultiBinding>
+                                </TextBlock.Text>
+                            </TextBlock>
                             <Button Grid.Column="1"
                                     Content="✕"
                                     Command="{Binding ToggleEditPanelCommand}"
@@ -595,13 +611,22 @@
                     <ScrollViewer Grid.Row="1">
                         <StackPanel Margin="20" Spacing="15">
                             <!-- Item ID and List ID (read-only) - on single line -->
-                            <StackPanel Spacing="8">
+                            <StackPanel Spacing="8" IsVisible="{Binding !IsAddingNewItem}">
                                 <TextBlock Text="Item Information" FontWeight="Bold" Foreground="White"/>
                                 <Grid ColumnDefinitions="Auto,*,Auto,Auto,*" ColumnSpacing="10">
                                     <TextBlock Grid.Column="0" Text="Item ID:" Foreground="LightGray"/>
                                     <TextBlock Grid.Column="1" Text="{Binding CurrentEditItem.Id}" Foreground="White"/>
                                     <TextBlock Grid.Column="2" Text="List ID:" Foreground="LightGray" Margin="20,0,0,0"/>
                                     <TextBlock Grid.Column="3" Text="{Binding CurrentEditItem.ListId}" Foreground="White"/>
+                                </Grid>
+                            </StackPanel>
+                            
+                            <!-- List ID for new items -->
+                            <StackPanel Spacing="8" IsVisible="{Binding IsAddingNewItem}">
+                                <TextBlock Text="New Item Information" FontWeight="Bold" Foreground="White"/>
+                                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+                                    <TextBlock Grid.Column="0" Text="List ID:" Foreground="LightGray"/>
+                                    <TextBlock Grid.Column="1" Text="{Binding SelectedList.Id}" Foreground="White"/>
                                 </Grid>
                             </StackPanel>
                             
@@ -634,11 +659,16 @@
                         <Grid ColumnDefinitions="*,Auto,Auto">
                             <!-- Status or help text with better visibility -->
                             <TextBlock Grid.Column="0" 
-                                       Text="Changes will be saved to the server"
                                        Foreground="Yellow"
                                        FontSize="12"
                                        FontWeight="Medium"
-                                       VerticalAlignment="Center"/>
+                                       VerticalAlignment="Center">
+                                <TextBlock.Text>
+                                    <MultiBinding StringFormat="{}{0} will be saved to the server">
+                                        <Binding Path="IsAddingNewItem" Converter="{x:Static vm:BoolToChangesNewItemTextConverter.Instance}"/>
+                                    </MultiBinding>
+                                </TextBlock.Text>
+                            </TextBlock>
                                        
                             <!-- Cancel button -->
                             <Button Grid.Column="1"
@@ -652,12 +682,17 @@
                                     
                             <!-- Save button -->
                             <Button Grid.Column="2"
-                                    Content="Save Changes"
                                     Command="{Binding SaveEditItemCommand}"
                                     Background="Green"
                                     Foreground="White"
                                     Padding="12,6"
-                                    BorderThickness="0"/>
+                                    BorderThickness="0">
+                                <Button.Content>
+                                    <MultiBinding StringFormat="{}{0}">
+                                        <Binding Path="IsAddingNewItem" Converter="{x:Static vm:BoolToSaveButtonTextConverter.Instance}"/>
+                                    </MultiBinding>
+                                </Button.Content>
+                            </Button>
                         </Grid>
                     </Border>
                 </Grid>
