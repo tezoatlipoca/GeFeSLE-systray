@@ -120,10 +120,12 @@ jobs:
         run: dotnet tool install -g dotnet-deb
       - name: Install Packaging.Targets
         run: dotnet deb install
+      - name: Restore dependencies
+        run: dotnet restore
       - name: Build Release
         run: dotnet publish -c Release -r linux-x64 --self-contained true
       - name: Create DEB Package
-        run: dotnet-deb -c Release -r linux-x64
+        run: dotnet-deb -c Release -r linux-x64 --self-contained
       - name: Rename DEB Package
         run: |
           debfile=$(ls bin/Release/net8.0/linux-x64/*.deb | head -n 1)
