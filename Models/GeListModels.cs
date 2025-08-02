@@ -61,6 +61,9 @@ public class GeListItem : INotifyPropertyChanged
         }
     }
     
+    // Display position in the list (1-based, not the database ID)
+    public int DisplayPosition { get; set; } = 1;
+    
     public bool IsNameClickable => !string.IsNullOrEmpty(Name) && 
                                    (Name.StartsWith("http://", StringComparison.OrdinalIgnoreCase) || 
                                     Name.StartsWith("https://", StringComparison.OrdinalIgnoreCase));

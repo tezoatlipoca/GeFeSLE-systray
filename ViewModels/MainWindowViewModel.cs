@@ -231,10 +231,12 @@ public partial class MainWindowViewModel : ViewModelBase
                 // Phase 3: Now render all items at once with cached images
                 StatusMessage = "Rendering items...";
                 ListItems.Clear();
+                int position = 1;
                 foreach (var item in visibleItems)
                 {
                     try
                     {
+                        item.DisplayPosition = position++;
                         ListItems.Add(item);
                     }
                     catch (Exception ex)
