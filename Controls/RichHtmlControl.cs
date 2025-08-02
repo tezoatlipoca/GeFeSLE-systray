@@ -111,6 +111,20 @@ namespace GeFeSLE.Controls
 
         private void ProcessHtmlNode(HtmlNode node, Panel container)
         {
+            // Check if this node contains mixed text and link content that should be processed together
+            if (HasMixedTextAndLinks(node))
+            {
+                // Convert the entire node to text and process as mixed content
+                var textContent = ConvertNodeToText(node);
+                if (!string.IsNullOrWhiteSpace(textContent))
+                {
+                    bool isInCodeContext = IsInCodeContext(node);
+                    ProcessTextWithSpecialElements(container, textContent, isInCodeContext);
+                }
+                return;
+            }
+
+            // Process child nodes individually for non-mixed content
             foreach (var child in node.ChildNodes)
             {
                 switch (child.NodeType)
@@ -137,6 +151,69 @@ namespace GeFeSLE.Controls
                         break;
                 }
             }
+        }
+
+        private bool HasMixedTextAndLinks(HtmlNode node)
+        {
+            // Check if the node contains a mix of text and link elements that should be processed together
+            bool hasText = false;
+            bool hasLinks = false;
+            
+            foreach (var child in node.ChildNodes)
+            {
+                if (child.NodeType == HtmlNodeType.Text && !string.IsNullOrWhiteSpace(child.InnerText))
+                {
+                    hasText = true;
+                }
+                else if (child.NodeType == HtmlNodeType.Element && child.Name.ToLower() == "a")
+                {
+                    hasLinks = true;
+                }
+            }
+            
+            return hasText && hasLinks;
+        }
+
+        private string ConvertNodeToText(HtmlNode node)
+        {
+            var result = new System.Text.StringBuilder();
+            
+            foreach (var child in node.ChildNodes)
+            {
+                if (child.NodeType == HtmlNodeType.Text)
+                {
+                    // Preserve all text content including whitespace
+                    result.Append(child.InnerText);
+                }
+                else if (child.NodeType == HtmlNodeType.Element && child.Name.ToLower() == "a")
+                {
+                    var href = child.GetAttributeValue("href", "");
+                    var linkText = child.InnerText?.Trim() ?? href;
+                    
+                    if (!string.IsNullOrEmpty(href))
+                    {
+                        // Convert to markdown link format so our existing processor can handle it
+                        result.Append($"[{linkText}]({href})");
+                    }
+                    else
+                    {
+                        // No href, just add the text
+                        result.Append(linkText);
+                    }
+                }
+                else if (child.NodeType == HtmlNodeType.Element && child.Name.ToLower() == "span")
+                {
+                    // Process span contents recursively to handle nested content
+                    result.Append(ConvertNodeToText(child));
+                }
+                else
+                {
+                    // For other elements, just get their text content
+                    result.Append(child.InnerText);
+                }
+            }
+            
+            return result.ToString();
         }
 
         private void ProcessHtmlElement(HtmlNode element, Panel container)
@@ -203,8 +280,17 @@ namespace GeFeSLE.Controls
                     break;
 
                 case "a":
+                    // Only process standalone links here; mixed text+link content is handled in ProcessHtmlNode
                     var href = element.GetAttributeValue("href", "");
                     var linkText = element.InnerText?.Trim() ?? href;
+                    
+                    // Check if this is a standalone link (not part of mixed content)
+                    var parentHasMixedContent = element.ParentNode != null && HasMixedTextAndLinks(element.ParentNode);
+                    if (parentHasMixedContent)
+                    {
+                        // This link is part of mixed content and will be processed by ConvertNodeToText
+                        break;
+                    }
                     
                     var link = new Button
                     {
@@ -586,6 +672,78 @@ namespace GeFeSLE.Controls
             if (string.IsNullOrWhiteSpace(text))
                 return;
 
+            // Split text into lines to handle markdown headers
+            var lines = text.Split(new[] { '\n', '\r' }, StringSplitOptions.None);
+            
+            for (int i = 0; i < lines.Length; i++)
+            {
+                var line = lines[i];
+                
+                // Check for markdown headers at the beginning of lines
+                if (!isInCodeContext && line.TrimStart().StartsWith("#"))
+                {
+                    var trimmedLine = line.TrimStart();
+                    var headerMatch = Regex.Match(trimmedLine, @"^(#{1,4})\s*(.+)$");
+                    
+                    if (headerMatch.Success)
+                    {
+                        var headerLevel = headerMatch.Groups[1].Value.Length;
+                        var headerText = headerMatch.Groups[2].Value.Trim();
+                        
+                        CreateMarkdownHeader(container, headerText, headerLevel);
+                        
+                        // Add line break after header if not the last line
+                        if (i < lines.Length - 1)
+                        {
+                            container.Children.Add(new TextBlock { Height = 4 });
+                        }
+                        continue;
+                    }
+                }
+                
+                // Process regular line content
+                if (!string.IsNullOrEmpty(line))
+                {
+                    ProcessLineWithSpecialElements(container, line, isInCodeContext);
+                }
+                
+                // Add line break if not the last line and the line wasn't empty
+                if (i < lines.Length - 1 && !string.IsNullOrEmpty(line))
+                {
+                    container.Children.Add(new TextBlock { Height = 4 });
+                }
+            }
+        }
+
+        private void CreateMarkdownHeader(Panel container, string text, int level)
+        {
+            var fontSize = level switch
+            {
+                1 => 20,
+                2 => 18,
+                3 => 16,
+                4 => 14,
+                _ => 12
+            };
+
+            var header = new TextBlock
+            {
+                Text = text,
+                FontWeight = FontWeight.Bold,
+                FontSize = fontSize,
+                TextWrapping = TextWrapping.Wrap,
+                Margin = new Thickness(0, 8, 0, 8),
+                Foreground = Brushes.LightBlue,
+                HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch
+            };
+            container.Children.Add(header);
+        }
+
+        private void ProcessLineWithSpecialElements(Panel container, string text, bool isInCodeContext)
+        {
+            if (string.IsNullOrWhiteSpace(text))
+                return;
+
             var patterns = new List<(Regex regex, string type)>();
             
             // Markdown images: ![alt](url)
@@ -652,7 +810,7 @@ namespace GeFeSLE.Controls
                 if (start > lastIndex)
                 {
                     var beforeText = text.Substring(lastIndex, start - lastIndex);
-                    if (!string.IsNullOrWhiteSpace(beforeText))
+                    if (!string.IsNullOrEmpty(beforeText))
                     {
                         AddInlineTextBlock(wrapPanel, beforeText);
                     }
@@ -713,7 +871,7 @@ namespace GeFeSLE.Controls
             if (lastIndex < text.Length)
             {
                 var afterText = text.Substring(lastIndex);
-                if (!string.IsNullOrWhiteSpace(afterText))
+                if (!string.IsNullOrEmpty(afterText))
                 {
                     AddInlineTextBlock(wrapPanel, afterText);
                 }
