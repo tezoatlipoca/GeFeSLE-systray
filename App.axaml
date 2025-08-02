@@ -15,7 +15,7 @@
 
     <TrayIcon.Icons>
         <TrayIcons>
-            <TrayIcon Icon="/Assets/avalonia-logo.ico"
+            <TrayIcon Icon="/Assets/gefesleff.ico"
                       ToolTipText="GeFeSLE System Tray">
                 <TrayIcon.Menu>
                     <NativeMenu>
