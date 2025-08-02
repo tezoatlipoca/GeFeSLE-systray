@@ -257,4 +257,42 @@ public class GeFeSLEApiClient
         DBg.d(LogLevel.Trace, "RETURN (null)");
         return null;
     }
+
+    public async Task<bool> UpdateItemAsync(GeListItem item)
+    {
+        DBg.d(LogLevel.Trace, "ENTER");
+        try
+        {
+            var json = JsonSerializer.Serialize(item, _jsonOptions);
+            var content = new StringContent(json, Encoding.UTF8, "application/json");
+            
+            var request = new HttpRequestMessage(HttpMethod.Put, "/modifyitem") { Content = content };
+            request.Headers.Add("GeFeSLE-XMLHttpRequest", "true");
+            
+            DBg.d(LogLevel.Debug, "PUT /modifyitem");
+            DBg.d(LogLevel.Debug, $"Request Body: {json}");
+            
+            var response = await _httpClient.SendAsync(request);
+            DBg.d(LogLevel.Debug, $"Response: {(int)response.StatusCode} {response.StatusCode}");
+            
+            if (response.IsSuccessStatusCode)
+            {
+                var responseBody = await response.Content.ReadAsStringAsync();
+                DBg.d(LogLevel.Debug, $"Response Body: {responseBody}");
+                DBg.d(LogLevel.Trace, "RETURN (success)");
+                return true;
+            }
+            else
+            {
+                var error = await response.Content.ReadAsStringAsync();
+                DBg.d(LogLevel.Debug, $"Error Body: {error}");
+            }
+        }
+        catch (Exception ex)
+        {
+            DBg.d(LogLevel.Error, $"Error updating item: {ex.Message}");
+        }
+        DBg.d(LogLevel.Trace, "RETURN (false)");
+        return false;
+    }
 }

@@ -59,6 +59,18 @@ public partial class MainWindowViewModel : ViewModelBase
     [ObservableProperty]
     private bool settingsPanelVisible = false;
     
+    [ObservableProperty]
+    private bool editPanelVisible = false;
+    
+    [ObservableProperty]
+    private GeListItem? currentEditItem = null;
+    
+    [ObservableProperty]
+    private string editItemName = string.Empty;
+    
+    [ObservableProperty]
+    private string editItemComment = string.Empty;
+    
     // Store all items (unfiltered) for search functionality
     private List<GeListItem> _allItems = new List<GeListItem>();
     
@@ -253,6 +265,17 @@ public partial class MainWindowViewModel : ViewModelBase
                 StatusMessage = "Rendering items...";
                 UpdateCombinedStatus();
                 
+                // Store raw values for editing before any processing
+                foreach (var item in visibleItems)
+                {
+                    if (item != null)
+                    {
+                        // Store original values from server for editing
+                        item.RawName = item.Name;
+                        item.RawComment = item.Comment;
+                    }
+                }
+                
                 // Store all items with their original positions for search functionality
                 _allItems = visibleItems.ToList();
                 int originalPosition = 1;
@@ -399,6 +422,72 @@ public partial class MainWindowViewModel : ViewModelBase
     private void ToggleSettingsPanel()
     {
         SettingsPanelVisible = !SettingsPanelVisible;
+    }
+    
+    [RelayCommand]
+    private void EditItem(GeListItem item)
+    {
+        if (item != null)
+        {
+            CurrentEditItem = item;
+            EditItemName = item.RawName ?? item.Name ?? string.Empty;
+            EditItemComment = item.RawComment ?? item.Comment ?? string.Empty;
+            EditPanelVisible = true;
+        }
+    }
+    
+    [RelayCommand]
+    private void ToggleEditPanel()
+    {
+        EditPanelVisible = !EditPanelVisible;
+        if (!EditPanelVisible)
+        {
+            CurrentEditItem = null;
+            EditItemName = string.Empty;
+            EditItemComment = string.Empty;
+        }
+    }
+    
+    [RelayCommand]
+    private async Task SaveEditItem()
+    {
+        if (CurrentEditItem == null)
+            return;
+            
+        try
+        {
+            // Update the item with new values
+            CurrentEditItem.RawName = EditItemName;
+            CurrentEditItem.RawComment = EditItemComment;
+            CurrentEditItem.Name = EditItemName; // For display
+            CurrentEditItem.Comment = EditItemComment; // For display (will be processed by RichHtmlControl)
+            CurrentEditItem.ModifiedDate = DateTime.Now; // Update modification date
+            
+            // Save to server using PUT endpoint
+            bool success = await _apiClient.UpdateItemAsync(CurrentEditItem);
+            
+            if (success)
+            {
+                DBg.d(LogLevel.Debug, $"Successfully saved changes to item {CurrentEditItem.Id}");
+                
+                // Close the edit panel
+                ToggleEditPanel();
+                
+                // Optionally refresh the display to ensure we have the latest data
+                // Note: This will preserve the current search/filter state
+                ApplySearchFilters();
+            }
+            else
+            {
+                DBg.d(LogLevel.Error, $"Failed to save changes to item {CurrentEditItem.Id} - server returned error");
+                // TODO: Show error message to user in the UI
+            }
+        }
+        catch (Exception ex)
+        {
+            DBg.d(LogLevel.Error, $"Failed to save item changes: {ex.Message}");
+            // TODO: Show error message to user in the UI
+        }
     }
     
     [RelayCommand]

@@ -360,18 +360,22 @@
                                                        Margin="10,0,5,0"/>
                                             
                                             <!-- Edit balloon (only visible when expanded) -->
-                                            <Border Grid.Column="4"
+                                            <Button Grid.Column="4"
                                                     IsVisible="{Binding IsExpanded}"
                                                     Background="OrangeRed" 
                                                     CornerRadius="8" 
                                                     Padding="6,3"
                                                     VerticalAlignment="Center"
-                                                    Margin="0,0,8,0">
+                                                    Margin="0,0,8,0"
+                                                    BorderThickness="0"
+                                                    Command="{Binding DataContext.EditItemCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                    CommandParameter="{Binding}"
+                                                    Cursor="Hand">
                                                 <TextBlock Text="Edit" 
                                                            Foreground="White" 
                                                            FontSize="10"
                                                            FontWeight="Medium"/>
-                                            </Border>
+                                            </Button>
                                             
                                             <!-- Expansion button - ONLY this area triggers expand/collapse -->
                                             <Button Grid.Column="5"
@@ -546,6 +550,116 @@
                                        Foreground="Blue"/>
                         </StackPanel>
                     </ScrollViewer>
+                </Grid>
+            </Border>
+        </Border>
+        
+        <!-- Edit item overlay panel (shows when EditPanelVisible is true) -->
+        <Border IsVisible="{Binding EditPanelVisible}"
+                Background="#E0000000"
+                HorizontalAlignment="Stretch"
+                VerticalAlignment="Stretch">
+            <!-- Edit Card -->
+            <Border Background="Black"
+                    CornerRadius="8"
+                    Margin="50"
+                    MaxWidth="700"
+                    MaxHeight="600"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center">
+                <Grid RowDefinitions="Auto,*,Auto">
+                    <!-- Header with close button -->
+                    <Border Grid.Row="0" 
+                            Background="DarkGray" 
+                            CornerRadius="8,8,0,0" 
+                            Padding="15,10">
+                        <Grid ColumnDefinitions="*,Auto">
+                            <TextBlock Grid.Column="0" 
+                                       Text="Edit Item" 
+                                       FontWeight="Bold" 
+                                       FontSize="16" 
+                                       Foreground="White"
+                                       VerticalAlignment="Center"/>
+                            <Button Grid.Column="1"
+                                    Content="✕"
+                                    Command="{Binding ToggleEditPanelCommand}"
+                                    Background="Transparent"
+                                    BorderThickness="0"
+                                    FontSize="14"
+                                    Foreground="White"
+                                    Padding="8,4"/>
+                        </Grid>
+                    </Border>
+                    
+                    <!-- Edit content -->
+                    <ScrollViewer Grid.Row="1">
+                        <StackPanel Margin="20" Spacing="15">
+                            <!-- Item ID and List ID (read-only) - on single line -->
+                            <StackPanel Spacing="8">
+                                <TextBlock Text="Item Information" FontWeight="Bold" Foreground="White"/>
+                                <Grid ColumnDefinitions="Auto,*,Auto,Auto,*" ColumnSpacing="10">
+                                    <TextBlock Grid.Column="0" Text="Item ID:" Foreground="LightGray"/>
+                                    <TextBlock Grid.Column="1" Text="{Binding CurrentEditItem.Id}" Foreground="White"/>
+                                    <TextBlock Grid.Column="2" Text="List ID:" Foreground="LightGray" Margin="20,0,0,0"/>
+                                    <TextBlock Grid.Column="3" Text="{Binding CurrentEditItem.ListId}" Foreground="White"/>
+                                </Grid>
+                            </StackPanel>
+                            
+                            <!-- Name field -->
+                            <StackPanel Spacing="8">
+                                <TextBlock Text="Name:" FontWeight="Bold" Foreground="White"/>
+                                <TextBox Text="{Binding EditItemName}" 
+                                         AcceptsReturn="false"
+                                         TextWrapping="Wrap"
+                                         MinHeight="30"/>
+                            </StackPanel>
+                            
+                            <!-- Comment field -->
+                            <StackPanel Spacing="8">
+                                <TextBlock Text="Comment (Raw HTML/Markdown):" FontWeight="Bold" Foreground="White"/>
+                                <TextBox Text="{Binding EditItemComment}" 
+                                         AcceptsReturn="true"
+                                         TextWrapping="Wrap"
+                                         MinHeight="200"
+                                         ScrollViewer.VerticalScrollBarVisibility="Auto"/>
+                            </StackPanel>
+                        </StackPanel>
+                    </ScrollViewer>
+                    
+                    <!-- Footer with action buttons -->
+                    <Border Grid.Row="2" 
+                            Background="DarkGray" 
+                            CornerRadius="0,0,8,8" 
+                            Padding="15,10">
+                        <Grid ColumnDefinitions="*,Auto,Auto">
+                            <!-- Status or help text with better visibility -->
+                            <TextBlock Grid.Column="0" 
+                                       Text="Changes will be saved to the server"
+                                       Foreground="Yellow"
+                                       FontSize="12"
+                                       FontWeight="Medium"
+                                       VerticalAlignment="Center"/>
+                                       
+                            <!-- Cancel button -->
+                            <Button Grid.Column="1"
+                                    Content="Cancel"
+                                    Command="{Binding ToggleEditPanelCommand}"
+                                    Background="Gray"
+                                    Foreground="White"
+                                    Padding="12,6"
+                                    Margin="0,0,10,0"
+                                    BorderThickness="0"/>
+                                    
+                            <!-- Save button -->
+                            <Button Grid.Column="2"
+                                    Content="Save Changes"
+                                    Command="{Binding SaveEditItemCommand}"
+                                    Background="Green"
+                                    Foreground="White"
+                                    Padding="12,6"
+                                    BorderThickness="0"/>
+                        </Grid>
+                    </Border>
                 </Grid>
             </Border>
         </Border>

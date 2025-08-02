@@ -46,6 +46,10 @@ public class GeListItem : INotifyPropertyChanged
     public DateTime CreatedDate { get; set; } = DateTime.Now;
     public DateTime ModifiedDate { get; set; } = DateTime.Now;
     
+    // Raw unprocessed values from server (for editing)
+    public string? RawName { get; set; }
+    public string? RawComment { get; set; }
+    
     // UI-specific properties
     private bool _isExpanded = false;
     public bool IsExpanded 
