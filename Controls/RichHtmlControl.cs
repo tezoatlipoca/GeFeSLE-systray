@@ -592,7 +592,24 @@ namespace GeFeSLE.Controls
                     HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Left,
                     VerticalAlignment = Avalonia.Layout.VerticalAlignment.Top,
                     MaxHeight = 300,
-                    Margin = new Thickness(0, 0, 0, 4)
+                    Margin = new Thickness(0, 0, 0, 4),
+                    Cursor = new Avalonia.Input.Cursor(Avalonia.Input.StandardCursorType.Hand)
+                };
+
+                // Make image clickable to open in viewer
+                image.PointerPressed += (s, e) =>
+                {
+                    try
+                    {
+                        var imageViewer = new GeFeSLE.Views.ImageViewerWindow();
+                        imageViewer.SetImage(cachedImage.Bitmap, altText ?? "Image");
+                        imageViewer.Show();
+                        DBg.d(LogLevel.Debug, $"Opened image viewer for {imageUrl}");
+                    }
+                    catch (Exception ex)
+                    {
+                        DBg.d(LogLevel.Error, $"Failed to open image viewer: {ex.Message}");
+                    }
                 };
 
                 imageContainer.Children.Add(image);
