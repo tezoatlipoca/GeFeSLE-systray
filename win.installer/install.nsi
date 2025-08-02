@@ -36,8 +36,9 @@ VIAddVersionKey "FileVersion" "${VERSION}"
 Section "Install"
   SetOutPath "$INSTDIR"
 
-  ; Add files
-  File /oname=GeFeSLE-systray.exe "..\bin\Release\net8.0\win-x64\publish\GeFeSLE-systray.exe"
+  ; Add files - copy all files from publish folder
+  File "..\bin\Release\net8.0\win-x64\publish\GeFeSLE-systray.exe"
+  File "..\bin\Release\net8.0\win-x64\publish\*.dll"
 
   ; Check for existing version
   ReadRegStr $R0 HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\GeFeSLE-systray" "DisplayVersion"
@@ -87,6 +88,7 @@ SectionEnd
 Section "Uninstall"
   ; Remove files and folders
   Delete "$INSTDIR\GeFeSLE-systray.exe"
+  Delete "$INSTDIR\*.dll"
   Delete "$INSTDIR\uninstall.exe"
   
   ; Remove shortcuts
