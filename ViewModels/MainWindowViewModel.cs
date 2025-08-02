@@ -56,6 +56,9 @@ public partial class MainWindowViewModel : ViewModelBase
     [ObservableProperty]
     private string tagsSearchQuery = string.Empty;
     
+    [ObservableProperty]
+    private bool settingsPanelVisible = false;
+    
     // Store all items (unfiltered) for search functionality
     private List<GeListItem> _allItems = new List<GeListItem>();
     
@@ -390,6 +393,12 @@ public partial class MainWindowViewModel : ViewModelBase
     {
         MetadataPanelExpanded = !MetadataPanelExpanded;
         _settingsService.UpdateMetadataPanelState(MetadataPanelExpanded);
+    }
+    
+    [RelayCommand]
+    private void ToggleSettingsPanel()
+    {
+        SettingsPanelVisible = !SettingsPanelVisible;
     }
     
     [RelayCommand]
