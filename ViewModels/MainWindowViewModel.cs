@@ -39,6 +39,9 @@ public partial class MainWindowViewModel : ViewModelBase
     private string itemCountStatus = string.Empty;
     
     [ObservableProperty]
+    private string combinedStatus = string.Empty;
+    
+    [ObservableProperty]
     private string dropdownPlaceholder = "Log in first (see Settings)";
     
     [ObservableProperty]
@@ -184,6 +187,7 @@ public partial class MainWindowViewModel : ViewModelBase
                 
                 // Phase 1: Extract all image URLs from all items before rendering any UI
                 StatusMessage = "Extracting images...";
+                UpdateCombinedStatus();
                 var allImageUrls = new List<string>();
                 
                 foreach (var item in visibleItems)
@@ -227,6 +231,7 @@ public partial class MainWindowViewModel : ViewModelBase
                 {
                     DBg.d(LogLevel.Debug, $"Found {allImageUrls.Count} images to preload");
                     StatusMessage = $"Loading images (0/{allImageUrls.Count})...";
+                    UpdateCombinedStatus();
                     
                     await _imageCacheService.PreloadImagesAsync(allImageUrls, (completed, total) =>
                     {
@@ -234,6 +239,7 @@ public partial class MainWindowViewModel : ViewModelBase
                         Dispatcher.UIThread.Post(() =>
                         {
                             StatusMessage = $"Loading images ({completed}/{total})...";
+                            UpdateCombinedStatus();
                         });
                     });
                     
@@ -242,6 +248,7 @@ public partial class MainWindowViewModel : ViewModelBase
                 
                 // Phase 3: Store all items with original positions and apply search filtering
                 StatusMessage = "Rendering items...";
+                UpdateCombinedStatus();
                 
                 // Store all items with their original positions for search functionality
                 _allItems = visibleItems.ToList();
@@ -264,14 +271,18 @@ public partial class MainWindowViewModel : ViewModelBase
                 
                 DBg.d(LogLevel.Debug, $"Loaded {ListItems.Count} valid items with all images preloaded");
                 StatusMessage = "";
+                UpdateCombinedStatus();
             }
             else
             {
                 _allItems.Clear();
                 ListItems.Clear();
                 ItemCountStatus = "";
+                UpdateCombinedStatus();
                 DBg.d(LogLevel.Debug, "No items found or empty response");
                 StatusMessage = "";
+                UpdateCombinedStatus();
+                UpdateCombinedStatus();
             }
         }
         catch (Exception ex)
@@ -279,6 +290,7 @@ public partial class MainWindowViewModel : ViewModelBase
             DBg.d(LogLevel.Error, $"Error loading list items: {ex.Message}");
             StatusMessage = $"Error: {ex.Message}";
             ItemCountStatus = "";
+            UpdateCombinedStatus();
         }
         finally
         {
@@ -467,6 +479,7 @@ public partial class MainWindowViewModel : ViewModelBase
         {
             ListItems.Clear();
             ItemCountStatus = "";
+            UpdateCombinedStatus();
             return;
         }
 
@@ -531,6 +544,7 @@ public partial class MainWindowViewModel : ViewModelBase
         if (_allItems == null || _allItems.Count == 0)
         {
             ItemCountStatus = "";
+            UpdateCombinedStatus();
             return;
         }
 
@@ -549,6 +563,8 @@ public partial class MainWindowViewModel : ViewModelBase
         {
             ItemCountStatus = $"Showing {totalItems} items";
         }
+        
+        UpdateCombinedStatus();
     }
 
     private List<string> ParseSearchTerms(string searchQuery)
@@ -611,5 +627,26 @@ public partial class MainWindowViewModel : ViewModelBase
         
         // Remove empty terms
         return terms.Where(t => !string.IsNullOrWhiteSpace(t)).ToList();
+    }
+
+    private void UpdateCombinedStatus()
+    {
+        // Priority: Loading images/processing status first, then item count status
+        if (!string.IsNullOrWhiteSpace(StatusMessage) && 
+            (StatusMessage.Contains("Loading images") || StatusMessage.Contains("Extracting images") || StatusMessage.Contains("Rendering items")))
+        {
+            // Show image loading/processing status
+            CombinedStatus = StatusMessage;
+        }
+        else if (!string.IsNullOrWhiteSpace(ItemCountStatus))
+        {
+            // Show item count when not loading images
+            CombinedStatus = ItemCountStatus;
+        }
+        else
+        {
+            // Clear when neither status is active
+            CombinedStatus = string.Empty;
+        }
     }
 }

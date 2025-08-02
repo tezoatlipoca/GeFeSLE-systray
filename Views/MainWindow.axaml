@@ -55,7 +55,7 @@
     <TabControl>
         <TabItem Header="Main">
             <!-- Use Grid instead of ScrollViewer + StackPanel to allow flexible sizing -->
-            <Grid Margin="20" RowDefinitions="Auto,Auto,Auto,Auto,*,Auto" MinHeight="400">
+            <Grid Margin="10" RowDefinitions="Auto,Auto,Auto,Auto,*,Auto" MinHeight="400">
                 <!-- Row 0: Lists Section -->
                 <StackPanel Grid.Row="0" Spacing="8" Margin="0,0,0,10">
                     <!-- Dropdown, Refresh Button, and Metadata Panel Toggle Row -->
@@ -78,6 +78,13 @@
                                 </StackPanel>
                             </Button.Content>
                         </Button>
+                        
+                        <!-- Combined status field moved here -->
+                        <TextBlock Text="{Binding CombinedStatus}" 
+                                   IsVisible="{Binding CombinedStatus, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                                   Foreground="Orange" FontSize="11" FontStyle="Italic"
+                                   VerticalAlignment="Center"
+                                   Margin="10,0,0,0"/>
                     </StackPanel>
                 </StackPanel>
 
@@ -110,10 +117,7 @@
                     </Border>
                 </StackPanel>
 
-                <!-- Row 2: Status Message (moved before search) -->
-                <TextBlock Grid.Row="2" Text="{Binding StatusMessage}" 
-                           IsVisible="{Binding StatusMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
-                           Foreground="Orange" Margin="0,0,0,10"/>
+                <!-- Row 2: Removed separate status message (now combined into CombinedStatus) -->
                 
                 <!-- Row 3: Search Controls -->
                 <WrapPanel Grid.Row="3" 
@@ -159,13 +163,6 @@
                     <TextBlock Text="Loading items..." IsVisible="{Binding IsLoadingItems}" 
                                FontStyle="Italic" Foreground="Gray"
                                HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                    
-                    <!-- Items count status -->
-                    <TextBlock Grid.Row="0" Text="{Binding ItemCountStatus}" 
-                               IsVisible="{Binding ItemCountStatus, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
-                               Foreground="LightGray" FontSize="11" FontStyle="Italic"
-                               HorizontalAlignment="Right" VerticalAlignment="Top"
-                               Margin="0,0,20,0" ZIndex="1"/>
                     
                     <!-- Items list with full height expansion -->
                     <ScrollViewer Name="ItemsScrollViewer"
