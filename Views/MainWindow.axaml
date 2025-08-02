@@ -394,7 +394,7 @@
                                                     CornerRadius="8" 
                                                     Padding="6,3"
                                                     VerticalAlignment="Center"
-                                                    Margin="60,0,8,0"
+                                                    Margin="4,0,8,0"
                                                     BorderThickness="0"
                                                     Command="{Binding DataContext.DeleteItemCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                                     CommandParameter="{Binding}"
@@ -768,81 +768,83 @@
             <Border Background="Black"
                     CornerRadius="8"
                     Padding="20"
-                    MaxWidth="500"
                     HorizontalAlignment="Center"
                     VerticalAlignment="Center">
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
                     
                     <!-- Header -->
                     <Border Grid.Row="0" Background="Orange" CornerRadius="4" Padding="8" Margin="0,0,0,15">
-                        <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="📦" FontSize="16" Margin="0,0,8,0"/>
-                            <TextBlock Text="Move Item" 
-                                       Foreground="White" 
-                                       FontWeight="Bold" 
-                                       FontSize="14"/>
-                            <Button Content="✕" 
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0" Orientation="Horizontal">
+                                <TextBlock Text="📦" FontSize="16" Margin="0,0,8,0"/>
+                                <TextBlock Foreground="White" 
+                                           FontWeight="Bold" 
+                                           FontSize="14"
+                                           TextWrapping="NoWrap"
+                                           TextTrimming="CharacterEllipsis">
+                                    <TextBlock.Text>
+                                        <MultiBinding StringFormat="Move Item {0} - {1}">
+                                            <Binding Path="CurrentMoveItem.Id"/>
+                                            <Binding Path="CurrentMoveItem.Name"/>
+                                        </MultiBinding>
+                                    </TextBlock.Text>
+                                </TextBlock>
+                            </StackPanel>
+                            <Button Grid.Column="1"
+                                    Content="✕" 
                                     Background="Transparent" 
                                     Foreground="White" 
                                     FontSize="14" 
                                     Padding="8,0" 
-                                    HorizontalAlignment="Right"
                                     Command="{Binding CancelMoveItemCommand}"
-                                    Margin="0,0,10,0"
                                     BorderThickness="0"/>
-                        </StackPanel>
+                        </Grid>
                     </Border>
                     
-                    <!-- Current item info -->
-                    <StackPanel Grid.Row="1" Margin="0,0,0,15">
-                        <TextBlock Text="Moving item:" FontWeight="Bold" Foreground="White" Margin="0,0,0,5"/>
-                        <TextBlock Text="{Binding CurrentMoveItem.Name}" Foreground="LightGray" TextWrapping="Wrap"/>
-                    </StackPanel>
-                    
                     <!-- Target list selection -->
-                    <StackPanel Grid.Row="2" Margin="0,0,0,15">
-                        <TextBlock Text="Move to list:" FontWeight="Bold" Foreground="White" Margin="0,0,0,5"/>
+                    <StackPanel Grid.Row="1">
+                        <TextBlock Text="Select destination list:" FontWeight="Bold" Foreground="White" Margin="0,0,0,10"/>
                         <ListBox ItemsSource="{Binding AvailableMoveLists}"
                                  Background="DarkGray"
                                  BorderThickness="1"
                                  BorderBrush="Gray"
-                                 MaxHeight="200"
-                                 ScrollViewer.VerticalScrollBarVisibility="Auto">
+                                 MinHeight="200"
+                                 MaxHeight="400"
+                                 HorizontalAlignment="Stretch"
+                                 ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                 ScrollViewer.HorizontalScrollBarVisibility="Disabled">
                             <ListBox.ItemTemplate>
                                 <DataTemplate>
                                     <Button Background="Transparent"
                                             BorderThickness="0"
-                                            Padding="8"
+                                            Padding="12,8"
                                             HorizontalAlignment="Stretch"
                                             HorizontalContentAlignment="Left"
                                             Command="{Binding DataContext.ConfirmMoveItemCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                             CommandParameter="{Binding}"
                                             Cursor="Hand">
+                                        <Button.Styles>
+                                            <Style Selector="Button:pointerover">
+                                                <Setter Property="Background" Value="#40FFFFFF"/>
+                                            </Style>
+                                        </Button.Styles>
                                         <TextBlock Text="{Binding Name}" 
                                                    Foreground="White"
+                                                   FontSize="12"
                                                    TextWrapping="Wrap"/>
                                     </Button>
                                 </DataTemplate>
                             </ListBox.ItemTemplate>
                         </ListBox>
                     </StackPanel>
-                    
-                    <!-- Cancel button -->
-                    <Grid Grid.Row="3">
-                        <Button Content="Cancel"
-                                Command="{Binding CancelMoveItemCommand}"
-                                Background="Gray"
-                                Foreground="White"
-                                Padding="12,6"
-                                HorizontalAlignment="Center"
-                                BorderThickness="0"/>
-                    </Grid>
                 </Grid>
             </Border>
         </Border>
