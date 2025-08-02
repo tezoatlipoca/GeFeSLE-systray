@@ -28,7 +28,7 @@ jobs:
 
       - name: Build
         run: |
-          dotnet publish -c Release -r win-x64
+          dotnet publish -c Release -r win-x64 --self-contained true
 
       - name: Archive Windows Binary
         id: winzip
@@ -91,7 +91,7 @@ jobs:
 
       - name: Build
         run: |
-          dotnet publish -c Release -r linux-x64
+          dotnet publish -c Release -r linux-x64 --self-contained true
 
       - name: Archive Linux Binary
         id: linuxtar
@@ -121,7 +121,7 @@ jobs:
       - name: Install Packaging.Targets
         run: dotnet deb install
       - name: Build Release
-        run: dotnet publish -c Release -r linux-x64
+        run: dotnet publish -c Release -r linux-x64 --self-contained true
       - name: Create DEB Package
         run: dotnet-deb -c Release
       - name: Rename DEB Package
@@ -145,7 +145,7 @@ jobs:
       - name: Install fpm
         run: sudo gem install --no-document fpm
       - name: Build with dotnet
-        run: dotnet publish -c Release -r linux-x64
+        run: dotnet publish -c Release -r linux-x64 --self-contained true
       - name: Copy executable for RPM
         run: |
           mkdir -p rpm-root/usr/local/bin
