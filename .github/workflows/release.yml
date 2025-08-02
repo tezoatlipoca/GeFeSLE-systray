@@ -120,8 +120,8 @@ jobs:
         run: dotnet tool install -g dotnet-deb
       - name: Install Packaging.Targets
         run: dotnet deb install
-      - name: Restore dependencies
-        run: dotnet restore
+      - name: Restore dependencies with runtime identifier
+        run: dotnet restore -r linux-x64
       - name: Build Release
         run: dotnet publish -c Release -r linux-x64 --self-contained true
       - name: Create DEB Package
