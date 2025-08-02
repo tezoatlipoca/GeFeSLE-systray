@@ -36,6 +36,9 @@ public partial class MainWindowViewModel : ViewModelBase
     private string statusMessage = string.Empty;
     
     [ObservableProperty]
+    private string itemCountStatus = string.Empty;
+    
+    [ObservableProperty]
     private string dropdownPlaceholder = "Log in first (see Settings)";
     
     [ObservableProperty]
@@ -266,6 +269,7 @@ public partial class MainWindowViewModel : ViewModelBase
             {
                 _allItems.Clear();
                 ListItems.Clear();
+                ItemCountStatus = "";
                 DBg.d(LogLevel.Debug, "No items found or empty response");
                 StatusMessage = "";
             }
@@ -274,6 +278,7 @@ public partial class MainWindowViewModel : ViewModelBase
         {
             DBg.d(LogLevel.Error, $"Error loading list items: {ex.Message}");
             StatusMessage = $"Error: {ex.Message}";
+            ItemCountStatus = "";
         }
         finally
         {
@@ -461,6 +466,7 @@ public partial class MainWindowViewModel : ViewModelBase
         if (_allItems == null || _allItems.Count == 0)
         {
             ListItems.Clear();
+            ItemCountStatus = "";
             return;
         }
 
@@ -514,6 +520,34 @@ public partial class MainWindowViewModel : ViewModelBase
             {
                 DBg.d(LogLevel.Warning, $"Error adding filtered item to list: {ex.Message}");
             }
+        }
+        
+        // Update item count status
+        UpdateItemCountStatus();
+    }
+
+    private void UpdateItemCountStatus()
+    {
+        if (_allItems == null || _allItems.Count == 0)
+        {
+            ItemCountStatus = "";
+            return;
+        }
+
+        var totalItems = _allItems.Count;
+        var filteredItems = ListItems.Count;
+        
+        // Check if any filters are active
+        var hasTextFilter = !string.IsNullOrWhiteSpace(TextSearchQuery);
+        var hasTagsFilter = !string.IsNullOrWhiteSpace(TagsSearchQuery);
+        
+        if (hasTextFilter || hasTagsFilter)
+        {
+            ItemCountStatus = $"Showing {filteredItems} of {totalItems} items";
+        }
+        else
+        {
+            ItemCountStatus = $"Showing {totalItems} items";
         }
     }
 
