@@ -17,10 +17,30 @@
         <vm:MainWindowViewModel/>
     </Design.DataContext>
 
+    <Window.Styles>
+        <!-- Style for search TextBoxes to maintain black background -->
+        <Style Selector="TextBox.search">
+            <Setter Property="Background" Value="Black"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="BorderBrush" Value="LightGray"/>
+            <Setter Property="BorderThickness" Value="1"/>
+        </Style>
+        <Style Selector="TextBox.search:focus">
+            <Setter Property="Background" Value="Black"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="BorderBrush" Value="DodgerBlue"/>
+        </Style>
+        <Style Selector="TextBox.search:pointerover">
+            <Setter Property="Background" Value="Black"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="BorderBrush" Value="Gray"/>
+        </Style>
+    </Window.Styles>
+
     <TabControl>
         <TabItem Header="Main">
             <!-- Use Grid instead of ScrollViewer + StackPanel to allow flexible sizing -->
-            <Grid Margin="20" RowDefinitions="Auto,Auto,Auto,*,Auto" MinHeight="400">
+            <Grid Margin="20" RowDefinitions="Auto,Auto,Auto,Auto,*,Auto" MinHeight="400">
                 <!-- Row 0: Lists Section -->
                 <StackPanel Grid.Row="0" Spacing="8" Margin="0,0,0,10">
                     <!-- Dropdown and Refresh Button Row -->
@@ -82,8 +102,46 @@
                            IsVisible="{Binding SelectedList, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
                            Margin="0,0,0,5"/>
                 
-                <!-- Row 3: Items List (Takes all remaining space) -->
-                <Grid Grid.Row="3" IsVisible="{Binding SelectedList, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                <!-- Row 3: Search Controls -->
+                <WrapPanel Grid.Row="3" 
+                           Orientation="Horizontal"
+                           IsVisible="{Binding SelectedList, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                           Margin="0,0,0,10">
+                    
+                    <!-- Text Search -->
+                    <TextBox Text="{Binding TextSearchQuery}" 
+                             Watermark="Search in item names and comments..."
+                             Classes="search"
+                             FontSize="12"
+                             Padding="8,6"
+                             MinWidth="200"
+                             Width="300"
+                             Margin="0,0,8,0"/>
+                    
+                    <!-- Tags Search -->
+                    <TextBox Text="{Binding TagsSearchQuery}" 
+                             Watermark="Search for tags..."
+                             Classes="search"
+                             FontSize="12"
+                             Padding="8,6"
+                             MinWidth="200"
+                             Width="300"
+                             Margin="0,0,8,0"/>
+                    
+                    <!-- Clear Button -->
+                    <Button Command="{Binding ClearSearchCommand}"
+                            Content="Clear"
+                            FontSize="12"
+                            Padding="12,6"
+                            Background="DarkGray"
+                            Foreground="White"
+                            BorderBrush="Gray"
+                            BorderThickness="1"
+                            VerticalAlignment="Center"/>
+                </WrapPanel>
+                
+                <!-- Row 4: Items List (Takes all remaining space) -->
+                <Grid Grid.Row="4" IsVisible="{Binding SelectedList, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
                     <!-- Loading indicator -->
                     <TextBlock Text="Loading items..." IsVisible="{Binding IsLoadingItems}" 
                                FontStyle="Italic" Foreground="Gray"
@@ -277,7 +335,7 @@
                 </Grid>
                 
                 <!-- Row 4: Status Message -->
-                <TextBlock Grid.Row="4" Text="{Binding StatusMessage}" 
+                <TextBlock Grid.Row="5" Text="{Binding StatusMessage}" 
                            IsVisible="{Binding StatusMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
                            Foreground="Blue" Margin="0,15,0,0"/>
             </Grid>

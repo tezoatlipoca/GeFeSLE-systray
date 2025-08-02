@@ -3,6 +3,7 @@ namespace GeFeSLE.Services;
 using System.Text.Json;
 using System.IO;
 using System;
+using System.Collections.Generic;
 
 public class AppSettings
 {
@@ -28,6 +29,15 @@ public class AppSettings
     
     // UI settings
     public bool MetadataPanelExpanded { get; set; } = false;
+    
+    // Search settings per list (key: listId, value: search terms)
+    public Dictionary<int, ListSearchSettings> ListSearchSettings { get; set; } = new Dictionary<int, ListSearchSettings>();
+}
+
+public class ListSearchSettings
+{
+    public string TextSearchQuery { get; set; } = string.Empty;
+    public string TagsSearchQuery { get; set; } = string.Empty;
 }
 
 public class SettingsService
@@ -132,6 +142,28 @@ public class SettingsService
         _settings.SessionCookies = null;
         SaveSettings();
         DBg.d(LogLevel.Trace, "RETURN ClearSessionCookies");
+    }
+
+    public void UpdateListSearchSettings(int listId, string textSearchQuery, string tagsSearchQuery)
+    {
+        DBg.d(LogLevel.Trace, "ENTER UpdateListSearchSettings");
+        _settings.ListSearchSettings[listId] = new ListSearchSettings
+        {
+            TextSearchQuery = textSearchQuery ?? string.Empty,
+            TagsSearchQuery = tagsSearchQuery ?? string.Empty
+        };
+        SaveSettings();
+        DBg.d(LogLevel.Trace, "RETURN UpdateListSearchSettings");
+    }
+
+    public ListSearchSettings GetListSearchSettings(int listId)
+    {
+        DBg.d(LogLevel.Trace, "ENTER GetListSearchSettings");
+        var result = _settings.ListSearchSettings.TryGetValue(listId, out var settings) 
+            ? settings 
+            : new ListSearchSettings();
+        DBg.d(LogLevel.Trace, "RETURN GetListSearchSettings");
+        return result;
     }
 
     public void UpdateWindowSettings(double width, double height, double x, double y, int screen, bool maximized)

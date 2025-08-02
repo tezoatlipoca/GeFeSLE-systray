@@ -44,6 +44,15 @@ public partial class MainWindowViewModel : ViewModelBase
     [ObservableProperty]
     private bool hasListMetadata = false;
     
+    [ObservableProperty]
+    private string textSearchQuery = string.Empty;
+    
+    [ObservableProperty]
+    private string tagsSearchQuery = string.Empty;
+    
+    // Store all items (unfiltered) for search functionality
+    private List<GeListItem> _allItems = new List<GeListItem>();
+    
     // Event for scroll position preservation
     public event Action<GeListItem>? ItemExpansionChanged;
 
@@ -228,28 +237,34 @@ public partial class MainWindowViewModel : ViewModelBase
                     DBg.d(LogLevel.Debug, "All images preloaded successfully");
                 }
                 
-                // Phase 3: Now render all items at once with cached images
+                // Phase 3: Store all items with original positions and apply search filtering
                 StatusMessage = "Rendering items...";
-                ListItems.Clear();
-                int position = 1;
-                foreach (var item in visibleItems)
+                
+                // Store all items with their original positions for search functionality
+                _allItems = visibleItems.ToList();
+                int originalPosition = 1;
+                foreach (var item in _allItems)
                 {
-                    try
-                    {
-                        item.DisplayPosition = position++;
-                        ListItems.Add(item);
-                    }
-                    catch (Exception ex)
-                    {
-                        DBg.d(LogLevel.Warning, $"Error adding item to list: {ex.Message}");
-                    }
+                    item.DisplayPosition = originalPosition++;
                 }
+                
+                // Restore search settings for this list
+                if (SelectedList != null)
+                {
+                    var searchSettings = _settingsService.GetListSearchSettings(SelectedList.Id);
+                    TextSearchQuery = searchSettings.TextSearchQuery;
+                    TagsSearchQuery = searchSettings.TagsSearchQuery;
+                }
+                
+                // Apply search filtering and display
+                ApplySearchFilters();
                 
                 DBg.d(LogLevel.Debug, $"Loaded {ListItems.Count} valid items with all images preloaded");
                 StatusMessage = "";
             }
             else
             {
+                _allItems.Clear();
                 ListItems.Clear();
                 DBg.d(LogLevel.Debug, "No items found or empty response");
                 StatusMessage = "";
@@ -325,6 +340,7 @@ public partial class MainWindowViewModel : ViewModelBase
             if (selectedList?.Id != value.Id)
             {
                 _itemExpansionStates.Clear();
+                // Note: Search terms are now persisted per list, not cleared
             }
             
             // Persist the selected list ID
@@ -399,6 +415,13 @@ public partial class MainWindowViewModel : ViewModelBase
         }
     }
     
+    [RelayCommand]
+    private void ClearSearch()
+    {
+        TextSearchQuery = string.Empty;
+        TagsSearchQuery = string.Empty;
+    }
+    
     private void UpdateHasListMetadata(GeList? list)
     {
         if (list == null)
@@ -411,5 +434,148 @@ public partial class MainWindowViewModel : ViewModelBase
         HasListMetadata = !string.IsNullOrWhiteSpace(list.Comment);
         
         DBg.d(LogLevel.Debug, $"HasListMetadata: {HasListMetadata} - Comment present: {!string.IsNullOrWhiteSpace(list.Comment)}");
+    }
+
+    partial void OnTextSearchQueryChanged(string value)
+    {
+        // Save search settings for current list
+        if (SelectedList != null)
+        {
+            _settingsService.UpdateListSearchSettings(SelectedList.Id, value, TagsSearchQuery);
+        }
+        ApplySearchFilters();
+    }
+
+    partial void OnTagsSearchQueryChanged(string value)
+    {
+        // Save search settings for current list
+        if (SelectedList != null)
+        {
+            _settingsService.UpdateListSearchSettings(SelectedList.Id, TextSearchQuery, value);
+        }
+        ApplySearchFilters();
+    }
+
+    private void ApplySearchFilters()
+    {
+        if (_allItems == null || _allItems.Count == 0)
+        {
+            ListItems.Clear();
+            return;
+        }
+
+        var filteredItems = _allItems.AsEnumerable();
+
+        // Apply text search filter
+        if (!string.IsNullOrWhiteSpace(TextSearchQuery))
+        {
+            var textTerms = ParseSearchTerms(TextSearchQuery);
+            if (textTerms.Count > 0)
+            {
+                filteredItems = filteredItems.Where(item =>
+                {
+                    var searchableText = $"{item.Name} {item.Comment}".ToLowerInvariant();
+                    // OR condition: item matches if it contains ANY of the search terms
+                    return textTerms.Any(term => searchableText.Contains(term.ToLowerInvariant()));
+                });
+            }
+        }
+
+        // Apply tags search filter  
+        if (!string.IsNullOrWhiteSpace(TagsSearchQuery))
+        {
+            var tagTerms = ParseSearchTerms(TagsSearchQuery);
+            if (tagTerms.Count > 0)
+            {
+                filteredItems = filteredItems.Where(item =>
+                {
+                    if (item.Tags == null || item.Tags.Count == 0)
+                        return false;
+                    
+                    var itemTags = item.Tags.Select(tag => tag.ToLowerInvariant()).ToList();
+                    // OR condition: item matches if any of its tags contains any of the search terms (partial match)
+                    return tagTerms.Any(term => 
+                        itemTags.Any(tag => tag.Contains(term.ToLowerInvariant()))
+                    );
+                });
+            }
+        }
+
+        // Update the ListItems collection (preserve original DisplayPosition)
+        ListItems.Clear();
+        foreach (var item in filteredItems)
+        {
+            try
+            {
+                // Keep original DisplayPosition - don't reassign
+                ListItems.Add(item);
+            }
+            catch (Exception ex)
+            {
+                DBg.d(LogLevel.Warning, $"Error adding filtered item to list: {ex.Message}");
+            }
+        }
+    }
+
+    private List<string> ParseSearchTerms(string searchQuery)
+    {
+        var terms = new List<string>();
+        if (string.IsNullOrWhiteSpace(searchQuery))
+            return terms;
+
+        var inQuotes = false;
+        var currentTerm = new System.Text.StringBuilder();
+        
+        for (int i = 0; i < searchQuery.Length; i++)
+        {
+            var c = searchQuery[i];
+            
+            if (c == '"')
+            {
+                if (inQuotes)
+                {
+                    // End of quoted term
+                    if (currentTerm.Length > 0)
+                    {
+                        terms.Add(currentTerm.ToString());
+                        currentTerm.Clear();
+                    }
+                    inQuotes = false;
+                }
+                else
+                {
+                    // Start of quoted term - first save any current non-quoted term
+                    if (currentTerm.Length > 0)
+                    {
+                        terms.Add(currentTerm.ToString().Trim());
+                        currentTerm.Clear();
+                    }
+                    inQuotes = true;
+                }
+            }
+            else if (char.IsWhiteSpace(c) && !inQuotes)
+            {
+                // Space outside quotes - end current term
+                if (currentTerm.Length > 0)
+                {
+                    terms.Add(currentTerm.ToString().Trim());
+                    currentTerm.Clear();
+                }
+            }
+            else
+            {
+                // Regular character or space inside quotes
+                currentTerm.Append(c);
+            }
+        }
+        
+        // Add final term if any
+        if (currentTerm.Length > 0)
+        {
+            terms.Add(currentTerm.ToString().Trim());
+        }
+        
+        // Remove empty terms
+        return terms.Where(t => !string.IsNullOrWhiteSpace(t)).ToList();
     }
 }
