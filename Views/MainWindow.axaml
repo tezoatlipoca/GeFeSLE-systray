@@ -119,68 +119,65 @@
         <Grid Margin="10" RowDefinitions="Auto,Auto,Auto,Auto,*,Auto" MinHeight="400">
             <!-- Row 0: Lists Section -->
             <StackPanel Grid.Row="0" Spacing="8" Margin="0,0,0,10">
-                <!-- Dropdown, Refresh Button, Add New Item Button, Metadata Panel Toggle Row, and Settings Cog -->
-                <Grid ColumnDefinitions="Auto,Auto,Auto,Auto,Auto,*,Auto">
-                    <ComboBox Grid.Column="0"
-                              ItemsSource="{Binding AvailableLists}" 
-                              SelectedItem="{Binding SelectedList}"
-                              DisplayMemberBinding="{Binding Name}"
-                              PlaceholderText="{Binding DropdownPlaceholder}"
-                              MinWidth="200"
-                              Margin="0,0,10,0"/>
-                    <Button Grid.Column="1" 
-                            Content="Refresh" 
-                            Command="{Binding LoadListsCommand}" 
-                            MinWidth="80"
-                            Margin="0,0,10,0"/>
-                    
-                    <!-- Add New Item button -->
-                    <Button Grid.Column="2"
-                            Content="+ Add Item"
-                            Command="{Binding AddNewItemCommand}"
-                            IsVisible="{Binding SelectedList, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
-                            Background="DarkGreen"
-                            Foreground="White"
-                            Padding="8,4"
-                            BorderThickness="0"
-                            Margin="0,0,10,0"/>
-                    
-                    <!-- Metadata Panel Toggle Button moved here -->
-                    <Button Grid.Column="3"
-                            Command="{Binding ToggleMetadataPanelCommand}" 
-                            MinWidth="120"
-                            IsVisible="{Binding SelectedList, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
-                            Margin="0,0,10,0">
-                        <Button.Content>
-                            <StackPanel Orientation="Horizontal" Spacing="5">
-                                <TextBlock Text="{Binding MetadataPanelExpanded, Converter={x:Static vm:BoolToExpanderTextConverter.Instance}}"/>
-                                <TextBlock Text="•" IsVisible="{Binding HasListMetadata}" 
-                                           Foreground="Orange" FontWeight="Bold" ToolTip.Tip="List has description/comment"/>
-                            </StackPanel>
-                        </Button.Content>
-                    </Button>
-                    
-                    <!-- Combined status field moved here -->
-                    <TextBlock Grid.Column="4"
-                               Text="{Binding CombinedStatus}" 
-                               IsVisible="{Binding CombinedStatus, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
-                               Foreground="Orange" FontSize="11" FontStyle="Italic"
-                               VerticalAlignment="Center"
-                               Margin="0,0,10,0"/>
-                    
-                    <!-- Spacer column (Grid.Column="5" with * width) -->
-                    
-                    <!-- Settings Cog Button (upper right) -->
-                    <Button Grid.Column="6"
+                <!-- Flexible layout that wraps controls when window is narrow -->
+                <DockPanel LastChildFill="False">
+                    <!-- Settings cog docked to the right to keep it always visible -->
+                    <Button DockPanel.Dock="Right"
                             Command="{Binding ToggleSettingsPanelCommand}" 
                             Background="Transparent" 
                             BorderThickness="0"
                             Padding="8"
                             ToolTip.Tip="Settings"
-                            HorizontalAlignment="Right">
+                            HorizontalAlignment="Right"
+                            VerticalAlignment="Top">
                         <TextBlock Text="⚙️" FontSize="16"/>
                     </Button>
-                </Grid>
+                    
+                    <!-- Wrap panel for the main controls that can wrap when needed -->
+                    <WrapPanel Orientation="Horizontal" DockPanel.Dock="Left">
+                        <ComboBox ItemsSource="{Binding AvailableLists}" 
+                                  SelectedItem="{Binding SelectedList}"
+                                  DisplayMemberBinding="{Binding Name}"
+                                  PlaceholderText="{Binding DropdownPlaceholder}"
+                                  MinWidth="200"
+                                  Margin="0,0,10,5"/>
+                        <Button Content="Refresh" 
+                                Command="{Binding LoadListsCommand}" 
+                                MinWidth="80"
+                                Margin="0,0,10,5"/>
+                        
+                        <!-- Add New Item button -->
+                        <Button Content="+ Add Item"
+                                Command="{Binding AddNewItemCommand}"
+                                IsVisible="{Binding SelectedList, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                                Background="DarkGreen"
+                                Foreground="White"
+                                Padding="8,4"
+                                BorderThickness="0"
+                                Margin="0,0,10,5"/>
+                        
+                        <!-- Metadata Panel Toggle Button -->
+                        <Button Command="{Binding ToggleMetadataPanelCommand}" 
+                                MinWidth="120"
+                                IsVisible="{Binding SelectedList, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                                Margin="0,0,10,5">
+                            <Button.Content>
+                                <StackPanel Orientation="Horizontal" Spacing="5">
+                                    <TextBlock Text="{Binding MetadataPanelExpanded, Converter={x:Static vm:BoolToExpanderTextConverter.Instance}}"/>
+                                    <TextBlock Text="•" IsVisible="{Binding HasListMetadata}" 
+                                               Foreground="Orange" FontWeight="Bold" ToolTip.Tip="List has description/comment"/>
+                                </StackPanel>
+                            </Button.Content>
+                        </Button>
+                        
+                        <!-- Combined status field -->
+                        <TextBlock Text="{Binding CombinedStatus}" 
+                                   IsVisible="{Binding CombinedStatus, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                                   Foreground="Orange" FontSize="11" FontStyle="Italic"
+                                   VerticalAlignment="Center"
+                                   Margin="0,0,10,5"/>
+                    </WrapPanel>
+                </DockPanel>
             </StackPanel>
 
             <!-- Row 1: Selected List Info (Collapsible) -->
@@ -265,14 +262,14 @@
                               IsVisible="{Binding !IsLoadingItems}"
                               HorizontalScrollBarVisibility="Disabled" 
                               VerticalScrollBarVisibility="Visible"
-                              Padding="0,0,20,0"
+                              Padding="0,0,0,0"
                               Margin="0">
                     <ListBox ItemsSource="{Binding ListItems}" 
                              Background="Transparent" 
                              BorderThickness="0"
                              HorizontalAlignment="Stretch"
                              ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                             Padding="0"
+                             Padding="0,0,18,0"
                              Margin="0">
                         <ListBox.ItemTemplate>
                             <DataTemplate>
@@ -291,6 +288,8 @@
                                                 <ColumnDefinition Width="*"/>    <!-- Item name and tags -->
                                                 <ColumnDefinition Width="Auto"/> <!-- Completion status -->
                                                 <ColumnDefinition Width="Auto"/> <!-- Edit balloon -->
+                                                <ColumnDefinition Width="Auto"/> <!-- Delete balloon -->
+                                                <ColumnDefinition Width="Auto"/> <!-- Move balloon -->
                                                 <ColumnDefinition Width="Auto"/> <!-- Expansion button -->
                                             </Grid.ColumnDefinitions>
                                             
@@ -377,7 +376,7 @@
                                                     CornerRadius="8" 
                                                     Padding="6,3"
                                                     VerticalAlignment="Center"
-                                                    Margin="0,0,8,0"
+                                                    Margin="0,0,4,0"
                                                     BorderThickness="0"
                                                     Command="{Binding DataContext.EditItemCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                                     CommandParameter="{Binding}"
@@ -388,8 +387,44 @@
                                                            FontWeight="Medium"/>
                                             </Button>
                                             
-                                            <!-- Expansion button - ONLY this area triggers expand/collapse -->
+                                            <!-- Delete balloon (only visible when expanded) -->
                                             <Button Grid.Column="5"
+                                                    IsVisible="{Binding IsExpanded}"
+                                                    Background="Red" 
+                                                    CornerRadius="8" 
+                                                    Padding="6,3"
+                                                    VerticalAlignment="Center"
+                                                    Margin="60,0,8,0"
+                                                    BorderThickness="0"
+                                                    Command="{Binding DataContext.DeleteItemCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                    CommandParameter="{Binding}"
+                                                    Cursor="Hand">
+                                                <TextBlock Text="Delete" 
+                                                           Foreground="White" 
+                                                           FontSize="10"
+                                                           FontWeight="Medium"/>
+                                            </Button>
+                                            
+                                            <!-- Move balloon (only visible when expanded) -->
+                                            <Button Grid.Column="6"
+                                                    IsVisible="{Binding IsExpanded}"
+                                                    Background="Orange" 
+                                                    CornerRadius="8" 
+                                                    Padding="6,3"
+                                                    VerticalAlignment="Center"
+                                                    Margin="8,0,8,0"
+                                                    BorderThickness="0"
+                                                    Command="{Binding DataContext.MoveItemCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                    CommandParameter="{Binding}"
+                                                    Cursor="Hand">
+                                                <TextBlock Text="Move" 
+                                                           Foreground="White" 
+                                                           FontSize="10"
+                                                           FontWeight="Medium"/>
+                                            </Button>
+                                            
+                                            <!-- Expansion button - ONLY this area triggers expand/collapse -->
+                                            <Button Grid.Column="7"
                                                     Command="{Binding DataContext.ToggleItemExpansionCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                                     CommandParameter="{Binding}"
                                                     Background="Transparent"
@@ -720,6 +755,94 @@
                             </Button>
                         </Grid>
                     </Border>
+                </Grid>
+            </Border>
+        </Border>
+        
+        <!-- Move item overlay panel (shows when MovePanelVisible is true) -->
+        <Border IsVisible="{Binding MovePanelVisible}"
+                Background="#E0000000"
+                HorizontalAlignment="Stretch"
+                VerticalAlignment="Stretch">
+            <!-- Move Card -->
+            <Border Background="Black"
+                    CornerRadius="8"
+                    Padding="20"
+                    MaxWidth="500"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    
+                    <!-- Header -->
+                    <Border Grid.Row="0" Background="Orange" CornerRadius="4" Padding="8" Margin="0,0,0,15">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="📦" FontSize="16" Margin="0,0,8,0"/>
+                            <TextBlock Text="Move Item" 
+                                       Foreground="White" 
+                                       FontWeight="Bold" 
+                                       FontSize="14"/>
+                            <Button Content="✕" 
+                                    Background="Transparent" 
+                                    Foreground="White" 
+                                    FontSize="14" 
+                                    Padding="8,0" 
+                                    HorizontalAlignment="Right"
+                                    Command="{Binding CancelMoveItemCommand}"
+                                    Margin="0,0,10,0"
+                                    BorderThickness="0"/>
+                        </StackPanel>
+                    </Border>
+                    
+                    <!-- Current item info -->
+                    <StackPanel Grid.Row="1" Margin="0,0,0,15">
+                        <TextBlock Text="Moving item:" FontWeight="Bold" Foreground="White" Margin="0,0,0,5"/>
+                        <TextBlock Text="{Binding CurrentMoveItem.Name}" Foreground="LightGray" TextWrapping="Wrap"/>
+                    </StackPanel>
+                    
+                    <!-- Target list selection -->
+                    <StackPanel Grid.Row="2" Margin="0,0,0,15">
+                        <TextBlock Text="Move to list:" FontWeight="Bold" Foreground="White" Margin="0,0,0,5"/>
+                        <ListBox ItemsSource="{Binding AvailableMoveLists}"
+                                 Background="DarkGray"
+                                 BorderThickness="1"
+                                 BorderBrush="Gray"
+                                 MaxHeight="200"
+                                 ScrollViewer.VerticalScrollBarVisibility="Auto">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <Button Background="Transparent"
+                                            BorderThickness="0"
+                                            Padding="8"
+                                            HorizontalAlignment="Stretch"
+                                            HorizontalContentAlignment="Left"
+                                            Command="{Binding DataContext.ConfirmMoveItemCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                            CommandParameter="{Binding}"
+                                            Cursor="Hand">
+                                        <TextBlock Text="{Binding Name}" 
+                                                   Foreground="White"
+                                                   TextWrapping="Wrap"/>
+                                    </Button>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                    </StackPanel>
+                    
+                    <!-- Cancel button -->
+                    <Grid Grid.Row="3">
+                        <Button Content="Cancel"
+                                Command="{Binding CancelMoveItemCommand}"
+                                Background="Gray"
+                                Foreground="White"
+                                Padding="12,6"
+                                HorizontalAlignment="Center"
+                                BorderThickness="0"/>
+                    </Grid>
                 </Grid>
             </Border>
         </Border>

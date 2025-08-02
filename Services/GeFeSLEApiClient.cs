@@ -333,4 +333,75 @@ public class GeFeSLEApiClient
         DBg.d(LogLevel.Trace, "RETURN (false)");
         return false;
     }
+
+    public async Task<bool> DeleteItemAsync(int listId, int itemId)
+    {
+        DBg.d(LogLevel.Trace, "ENTER");
+        try
+        {
+            var request = new HttpRequestMessage(HttpMethod.Delete, $"/deleteitem/{listId}/{itemId}");
+            request.Headers.Add("GeFeSLE-XMLHttpRequest", "true");
+            
+            DBg.d(LogLevel.Debug, $"DELETE /deleteitem/{listId}/{itemId}");
+            
+            var response = await _httpClient.SendAsync(request);
+            DBg.d(LogLevel.Debug, $"Response: {(int)response.StatusCode} {response.StatusCode}");
+            
+            if (response.IsSuccessStatusCode)
+            {
+                var responseBody = await response.Content.ReadAsStringAsync();
+                DBg.d(LogLevel.Debug, $"Response Body: {responseBody}");
+                DBg.d(LogLevel.Trace, "RETURN (success)");
+                return true;
+            }
+            else
+            {
+                var error = await response.Content.ReadAsStringAsync();
+                DBg.d(LogLevel.Debug, $"Error Body: {error}");
+            }
+        }
+        catch (Exception ex)
+        {
+            DBg.d(LogLevel.Error, $"Error deleting item: {ex.Message}");
+        }
+        DBg.d(LogLevel.Trace, "RETURN (false)");
+        return false;
+    }
+
+    public async Task<bool> MoveItemAsync(MoveItemDto moveDto)
+    {
+        DBg.d(LogLevel.Trace, "ENTER");
+        try
+        {
+            var request = new HttpRequestMessage(HttpMethod.Post, "/moveitem");
+            request.Headers.Add("GeFeSLE-XMLHttpRequest", "true");
+            
+            var json = JsonSerializer.Serialize(moveDto, _jsonOptions);
+            request.Content = new StringContent(json, Encoding.UTF8, "application/json");
+            
+            DBg.d(LogLevel.Debug, $"POST /moveitem with body: {json}");
+            
+            var response = await _httpClient.SendAsync(request);
+            DBg.d(LogLevel.Debug, $"Response: {(int)response.StatusCode} {response.StatusCode}");
+            
+            if (response.IsSuccessStatusCode)
+            {
+                var responseBody = await response.Content.ReadAsStringAsync();
+                DBg.d(LogLevel.Debug, $"Response Body: {responseBody}");
+                DBg.d(LogLevel.Trace, "RETURN (success)");
+                return true;
+            }
+            else
+            {
+                var error = await response.Content.ReadAsStringAsync();
+                DBg.d(LogLevel.Debug, $"Error Body: {error}");
+            }
+        }
+        catch (Exception ex)
+        {
+            DBg.d(LogLevel.Error, $"Error moving item: {ex.Message}");
+        }
+        DBg.d(LogLevel.Trace, "RETURN (false)");
+        return false;
+    }
 }

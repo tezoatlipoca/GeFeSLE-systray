@@ -36,6 +36,9 @@ public partial class MainWindowViewModel : ViewModelBase
     private string statusMessage = string.Empty;
     
     [ObservableProperty]
+    private string imageStatus = string.Empty;
+    
+    [ObservableProperty]
     private string itemCountStatus = string.Empty;
     
     [ObservableProperty]
@@ -79,6 +82,15 @@ public partial class MainWindowViewModel : ViewModelBase
     
     [ObservableProperty]
     private string editValidationError = string.Empty;
+    
+    [ObservableProperty]
+    private bool movePanelVisible = false;
+    
+    [ObservableProperty]
+    private GeListItem? currentMoveItem = null;
+    
+    [ObservableProperty]
+    private ObservableCollection<GeList> availableMoveLists = new();
     
     // Store all items (unfiltered) for search functionality
     private List<GeListItem> _allItems = new List<GeListItem>();
@@ -191,6 +203,12 @@ public partial class MainWindowViewModel : ViewModelBase
     private async Task LoadListItemsAsync(int listId)
     {
         IsLoadingItems = true;
+        // Clear previous status when starting to load new list
+        ImageStatus = "";
+        ItemCountStatus = "";
+        StatusMessage = "";
+        UpdateCombinedStatus();
+        
         try
         {
             DBg.d(LogLevel.Debug, $"Loading items for list {listId}");
@@ -210,7 +228,7 @@ public partial class MainWindowViewModel : ViewModelBase
                 var visibleItems = items.Where(item => item != null && item.Visible).ToList();
                 
                 // Phase 1: Extract all image URLs from all items before rendering any UI
-                StatusMessage = "Extracting images...";
+                ImageStatus = "Extracting images...";
                 UpdateCombinedStatus();
                 var allImageUrls = new List<string>();
                 
@@ -254,25 +272,27 @@ public partial class MainWindowViewModel : ViewModelBase
                 if (allImageUrls.Count > 0)
                 {
                     DBg.d(LogLevel.Debug, $"Found {allImageUrls.Count} images to preload");
-                    StatusMessage = $"Loading images (0/{allImageUrls.Count})...";
+                    ImageStatus = $"Loading 0 / {allImageUrls.Count} images";
                     UpdateCombinedStatus();
                     
-                    await _imageCacheService.PreloadImagesAsync(allImageUrls, (completed, total) =>
+                    var successfulLoads = await _imageCacheService.PreloadImagesAsync(allImageUrls, (completed, successful, total) =>
                     {
                         // Update status on UI thread
                         Dispatcher.UIThread.Post(() =>
                         {
-                            StatusMessage = $"Loading images ({completed}/{total})...";
+                            ImageStatus = $"Loading {successful} / {total} images";
                             UpdateCombinedStatus();
                         });
                     });
+                    
+                    // Final status after loading complete
+                    ImageStatus = $"Loaded {successfulLoads} / {allImageUrls.Count} images";
+                    UpdateCombinedStatus();
                     
                     DBg.d(LogLevel.Debug, "All images preloaded successfully");
                 }
                 
                 // Phase 3: Store all items with original positions and apply search filtering
-                StatusMessage = "Rendering items...";
-                UpdateCombinedStatus();
                 
                 // Store raw values for editing before any processing
                 foreach (var item in visibleItems)
@@ -306,6 +326,7 @@ public partial class MainWindowViewModel : ViewModelBase
                 
                 DBg.d(LogLevel.Debug, $"Loaded {ListItems.Count} valid items with all images preloaded");
                 StatusMessage = "";
+                // Keep ImageStatus showing the final loaded count, don't clear it
                 UpdateCombinedStatus();
             }
             else
@@ -313,11 +334,10 @@ public partial class MainWindowViewModel : ViewModelBase
                 _allItems.Clear();
                 ListItems.Clear();
                 ItemCountStatus = "";
-                UpdateCombinedStatus();
-                DBg.d(LogLevel.Debug, "No items found or empty response");
+                ImageStatus = "";
                 StatusMessage = "";
                 UpdateCombinedStatus();
-                UpdateCombinedStatus();
+                DBg.d(LogLevel.Debug, "No items found or empty response");
             }
         }
         catch (Exception ex)
@@ -325,6 +345,7 @@ public partial class MainWindowViewModel : ViewModelBase
             DBg.d(LogLevel.Error, $"Error loading list items: {ex.Message}");
             StatusMessage = $"Error: {ex.Message}";
             ItemCountStatus = "";
+            ImageStatus = "";
             UpdateCombinedStatus();
         }
         finally
@@ -445,6 +466,108 @@ public partial class MainWindowViewModel : ViewModelBase
             EditItemTags = ConvertTagsToString(item.Tags ?? new List<string>());
             EditPanelVisible = true;
         }
+    }
+    
+    [RelayCommand]
+    private async Task DeleteItem(GeListItem item)
+    {
+        if (item == null || SelectedList == null)
+            return;
+            
+        try
+        {
+            // Show confirmation dialog (in a real app you'd use a proper dialog)
+            // For now, we'll just proceed with deletion
+            
+            // Delete the item from the server
+            bool success = await _apiClient.DeleteItemAsync(SelectedList.Id, item.Id);
+            
+            if (success)
+            {
+                DBg.d(LogLevel.Debug, $"Successfully deleted item {item.Id} from list {SelectedList.Id}");
+                
+                // Refresh the items list to remove the deleted item
+                await LoadListItemsAsync(SelectedList.Id);
+            }
+            else
+            {
+                DBg.d(LogLevel.Error, $"Failed to delete item {item.Id} from list {SelectedList.Id} - server returned error");
+                // TODO: Show error message to user in the UI
+            }
+        }
+        catch (Exception ex)
+        {
+            DBg.d(LogLevel.Error, $"Failed to delete item: {ex.Message}");
+            // TODO: Show error message to user in the UI
+        }
+    }
+    
+    [RelayCommand]
+    private void MoveItem(GeListItem item)
+    {
+        if (item == null || SelectedList == null)
+            return;
+            
+        CurrentMoveItem = item;
+        
+        // Populate available lists excluding the current list
+        AvailableMoveLists.Clear();
+        foreach (var list in AvailableLists)
+        {
+            if (list.Id != SelectedList.Id)
+            {
+                AvailableMoveLists.Add(list);
+            }
+        }
+        
+        MovePanelVisible = true;
+    }
+    
+    [RelayCommand]
+    private async Task ConfirmMoveItem(GeList targetList)
+    {
+        if (CurrentMoveItem == null || SelectedList == null || targetList == null)
+            return;
+            
+        try
+        {
+            var moveDto = new MoveItemDto
+            {
+                itemid = CurrentMoveItem.Id,
+                listid = targetList.Id
+            };
+            
+            bool success = await _apiClient.MoveItemAsync(moveDto);
+            
+            if (success)
+            {
+                DBg.d(LogLevel.Debug, $"Successfully moved item {CurrentMoveItem.Id} from list {SelectedList.Id} to list {targetList.Id}");
+                
+                // Close the move panel
+                CancelMoveItem();
+                
+                // Refresh the items list to remove the moved item
+                await LoadListItemsAsync(SelectedList.Id);
+            }
+            else
+            {
+                DBg.d(LogLevel.Error, $"Failed to move item {CurrentMoveItem.Id} to list {targetList.Id} - server returned error");
+                // TODO: Show error message to user in the UI
+            }
+        }
+        catch (Exception ex)
+        {
+            DBg.d(LogLevel.Error, $"Failed to move item: {ex.Message}");
+            // TODO: Show error message to user in the UI
+        }
+    }
+    
+    [RelayCommand]
+    private void CancelMoveItem()
+    {
+        MovePanelVisible = false;
+        CurrentMoveItem = null;
+        AvailableMoveLists.Clear();
     }
     
     [RelayCommand]
@@ -907,21 +1030,33 @@ public partial class MainWindowViewModel : ViewModelBase
 
     private void UpdateCombinedStatus()
     {
-        // Priority: Loading images/processing status first, then item count status
-        if (!string.IsNullOrWhiteSpace(StatusMessage) && 
-            (StatusMessage.Contains("Loading images") || StatusMessage.Contains("Extracting images") || StatusMessage.Contains("Rendering items")))
+        var statusParts = new List<string>();
+        
+        // Add image status if available
+        if (!string.IsNullOrWhiteSpace(ImageStatus))
         {
-            // Show image loading/processing status
-            CombinedStatus = StatusMessage;
+            statusParts.Add(ImageStatus);
         }
-        else if (!string.IsNullOrWhiteSpace(ItemCountStatus))
+        
+        // Add item count status if available
+        if (!string.IsNullOrWhiteSpace(ItemCountStatus))
         {
-            // Show item count when not loading images
-            CombinedStatus = ItemCountStatus;
+            statusParts.Add(ItemCountStatus);
+        }
+        
+        // Add other status messages if available
+        if (!string.IsNullOrWhiteSpace(StatusMessage))
+        {
+            statusParts.Add(StatusMessage);
+        }
+        
+        // Combine all status parts
+        if (statusParts.Count > 0)
+        {
+            CombinedStatus = string.Join(" | ", statusParts);
         }
         else
         {
-            // Clear when neither status is active
             CombinedStatus = string.Empty;
         }
     }

@@ -66,7 +66,6 @@ public class RemoveTagDto
 
 public class MoveItemDto
 {
-    public int SourceListId { get; set; }
-    public int DestinationListId { get; set; }
-    public int ItemId { get; set; }
+    public int itemid { get; set; }
+    public int listid { get; set; }
 }

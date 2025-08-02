@@ -84,10 +84,11 @@ namespace GeFeSLE.Services
             return new List<string>(imageUrls);
         }
 
-        public async Task PreloadImagesAsync(List<string> imageUrls, Action<int, int>? progressCallback = null)
+        public async Task<int> PreloadImagesAsync(List<string> imageUrls, Action<int, int, int>? progressCallback = null)
         {
             var tasks = new List<Task>();
             int completed = 0;
+            int successful = 0;
             int total = imageUrls.Count;
 
             foreach (var url in imageUrls)
@@ -95,11 +96,20 @@ namespace GeFeSLE.Services
                 tasks.Add(LoadImageAsync(url).ContinueWith(t =>
                 {
                     Interlocked.Increment(ref completed);
-                    progressCallback?.Invoke(completed, total);
+                    
+                    // Check if the load was successful
+                    if (_imageCache.TryGetValue(url, out var cachedImage) && 
+                        cachedImage.IsLoaded && cachedImage.Bitmap != null)
+                    {
+                        Interlocked.Increment(ref successful);
+                    }
+                    
+                    progressCallback?.Invoke(completed, successful, total);
                 }));
             }
 
             await Task.WhenAll(tasks);
+            return successful;
         }
 
         public CachedImage? GetCachedImage(string imageUrl)
