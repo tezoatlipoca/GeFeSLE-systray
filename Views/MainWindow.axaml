@@ -811,7 +811,6 @@
                     
                     <!-- Target list selection -->
                     <StackPanel Grid.Row="1">
-                        <TextBlock Text="Select destination list:" FontWeight="Bold" Foreground="White" Margin="0,0,0,10"/>
                         <ListBox ItemsSource="{Binding AvailableMoveLists}"
                                  Background="DarkGray"
                                  BorderThickness="1"

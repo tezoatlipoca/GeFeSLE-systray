@@ -25,7 +25,11 @@ namespace GeFeSLE.Controls
         public string HtmlContent
         {
             get => GetValue(HtmlContentProperty);
-            set => SetValue(HtmlContentProperty, value);
+            set 
+            {
+                DBg.d(LogLevel.Debug, $"RichHtmlControl.HtmlContent setter called with: {value?.Substring(0, Math.Min(100, value?.Length ?? 0))}...");
+                SetValue(HtmlContentProperty, value);
+            }
         }
 
         public RichHtmlControl()
@@ -39,6 +43,7 @@ namespace GeFeSLE.Controls
 
             if (change.Property == HtmlContentProperty)
             {
+                DBg.d(LogLevel.Debug, $"RichHtmlControl.OnPropertyChanged - HtmlContentProperty changed from '{change.OldValue}' to '{change.NewValue}'");
                 UpdateContent();
             }
         }
@@ -79,13 +84,20 @@ namespace GeFeSLE.Controls
 
         private void UpdateContent()
         {
+            DBg.d(LogLevel.Debug, $"RichHtmlControl.UpdateContent called with content length: {HtmlContent?.Length ?? 0}");
+            
             if (_contentPanel == null) return;
 
             // Clear existing content immediately on UI thread
             _contentPanel.Children.Clear();
 
             if (string.IsNullOrWhiteSpace(HtmlContent))
+            {
+                DBg.d(LogLevel.Debug, "HtmlContent is null or empty, returning");
                 return;
+            }
+
+            DBg.d(LogLevel.Debug, $"Processing HTML content: {HtmlContent.Substring(0, Math.Min(200, HtmlContent.Length))}...");
 
             try
             {
@@ -111,9 +123,12 @@ namespace GeFeSLE.Controls
 
         private void ProcessHtmlNode(HtmlNode node, Panel container)
         {
+            DBg.d(LogLevel.Debug, $"ProcessHtmlNode: Processing node '{node.Name}' with {node.ChildNodes.Count} children");
+            
             // Check if this node contains mixed text and link content that should be processed together
             if (HasMixedTextAndLinks(node))
             {
+                DBg.d(LogLevel.Debug, "ProcessHtmlNode: Node has mixed text and links, processing as text");
                 // Convert the entire node to text and process as mixed content
                 var textContent = ConvertNodeToText(node);
                 if (!string.IsNullOrWhiteSpace(textContent))
@@ -127,6 +142,8 @@ namespace GeFeSLE.Controls
             // Process child nodes individually for non-mixed content
             foreach (var child in node.ChildNodes)
             {
+                DBg.d(LogLevel.Debug, $"ProcessHtmlNode: Processing child node type '{child.NodeType}', name '{child.Name}'");
+                
                 switch (child.NodeType)
                 {
                     case HtmlNodeType.Text:
@@ -155,7 +172,14 @@ namespace GeFeSLE.Controls
 
         private bool HasMixedTextAndLinks(HtmlNode node)
         {
+            // Don't apply mixed content processing to document nodes or nodes with img elements
+            if (node.Name == "#document" || node.SelectNodes(".//img") != null)
+            {
+                return false;
+            }
+            
             // Check if the node contains a mix of text and link elements that should be processed together
+            // This is specifically for cases like paragraph content with inline links
             bool hasText = false;
             bool hasLinks = false;
             
@@ -218,6 +242,8 @@ namespace GeFeSLE.Controls
 
         private void ProcessHtmlElement(HtmlNode element, Panel container)
         {
+            DBg.d(LogLevel.Debug, $"ProcessHtmlElement: Processing element '{element.Name}' with content: {element.OuterHtml?.Substring(0, Math.Min(100, element.OuterHtml?.Length ?? 0))}...");
+            
             switch (element.Name.ToLower())
             {
                 case "p":
@@ -533,6 +559,7 @@ namespace GeFeSLE.Controls
             // Use cached images instead of loading individually
             if (ImageCache == null)
             {
+                DBg.d(LogLevel.Warning, $"Image cache not available for {imageUrl}");
                 ShowBrokenImageStatic(container, imageUrl, altText, "Image cache not available");
                 return;
             }
@@ -541,6 +568,7 @@ namespace GeFeSLE.Controls
             if (cachedImage == null || !cachedImage.IsLoaded)
             {
                 // Image not preloaded or failed to load - show broken image
+                DBg.d(LogLevel.Warning, $"Image not preloaded or failed to load: {imageUrl}");
                 ShowBrokenImageStatic(container, imageUrl, altText, "Image not preloaded");
                 return;
             }
@@ -548,6 +576,7 @@ namespace GeFeSLE.Controls
             if (cachedImage.Bitmap != null)
             {
                 // Image loaded successfully - create image control
+                DBg.d(LogLevel.Debug, $"Creating image control for {imageUrl} - Bitmap size: {cachedImage.Bitmap.Size}");
                 var imageContainer = new StackPanel
                 {
                     Orientation = Avalonia.Layout.Orientation.Vertical,
@@ -589,6 +618,7 @@ namespace GeFeSLE.Controls
             else
             {
                 // Image failed to load - show broken image
+                DBg.d(LogLevel.Warning, $"Image bitmap is null for {imageUrl}: {cachedImage.ErrorMessage}");
                 ShowBrokenImageStatic(container, imageUrl, altText, cachedImage.ErrorMessage ?? "Unknown error");
             }
         }
