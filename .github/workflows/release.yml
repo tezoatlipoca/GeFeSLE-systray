@@ -28,7 +28,7 @@ jobs:
 
       - name: Build
         run: |
-          dotnet publish -c Release -r win-x64 --self-contained true
+          dotnet publish -c Release -r win-x64 --self-contained true -p:IncludeAllContentForSelfExtract=true
 
       - name: Archive Windows Binary
         id: winzip
@@ -91,7 +91,7 @@ jobs:
 
       - name: Build
         run: |
-          dotnet publish -c Release -r linux-x64 --self-contained true
+          dotnet publish -c Release -r linux-x64 --self-contained true -p:IncludeAllContentForSelfExtract=true
 
       - name: Archive Linux Binary
         id: linuxtar
@@ -123,7 +123,7 @@ jobs:
       - name: Restore dependencies with runtime identifier
         run: dotnet restore -r linux-x64
       - name: Build Release
-        run: dotnet publish -c Release -r linux-x64 --self-contained true
+        run: dotnet publish -c Release -r linux-x64 --self-contained true -p:IncludeAllContentForSelfExtract=true
       - name: Create DEB Package
         run: dotnet-deb -c Release -r linux-x64
       - name: Rename DEB Package
@@ -147,14 +147,14 @@ jobs:
       - name: Install fpm
         run: sudo gem install --no-document fpm
       - name: Build with dotnet
-        run: dotnet publish -c Release -r linux-x64 --self-contained true
+        run: dotnet publish -c Release -r linux-x64 --self-contained true -p:IncludeAllContentForSelfExtract=true
       - name: Copy executable for RPM
         run: |
           mkdir -p rpm-root/usr/local/bin
-          cp bin/Release/net8.0/linux-x64/publish/GeFeSLE-systray rpm-root/usr/local/bin/
+          cp -r bin/Release/net8.0/linux-x64/publish/* rpm-root/usr/local/bin/
       - name: Create RPM Package
         run: |
-          fpm -s dir -t rpm -n GeFeSLE-systray -v ${VERSION} --prefix /usr/local/bin rpm-root/usr/local/bin/GeFeSLE-systray
+          fpm -s dir -t rpm -n GeFeSLE-systray -v ${VERSION} -C rpm-root .
       - name: Rename RPM Package
         run: |
           rpmfile=$(ls *.rpm | head -n 1)

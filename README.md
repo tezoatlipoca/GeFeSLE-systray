@@ -25,8 +25,16 @@ Download the portable ZIP archive:
 # Using curl
 curl -L -o GeFeSLE-systray-win64.zip "https://github.com/tezoatlipoca/GeFeSLE-systray/releases/download/v0.1.0/GeFeSLE-systray_0.1.0_win-x64.zip"
 
-# Extract and run
 # Extract the ZIP file to your preferred location
+# To add to PATH:
+
+# Option A: Add directory to PATH (PowerShell)
+$env:PATH += ";C:\path\to\extracted\folder"
+# For permanent: [Environment]::SetEnvironmentVariable("PATH", $env:PATH + ";C:\path\to\extracted\folder", [EnvironmentVariableTarget]::User)
+
+# Option B: Copy to system directory
+# Copy-Item "GeFeSLE-systray.exe" "$env:USERPROFILE\AppData\Local\Microsoft\WindowsApps\"
+
 # Run GeFeSLE-systray.exe
 ```
 
@@ -39,11 +47,13 @@ For Debian, Ubuntu, and other Debian-based distributions:
 # Download the .deb package
 curl -L -o gefesle-systray.deb "https://github.com/tezoatlipoca/GeFeSLE-systray/releases/download/v0.1.0/GeFeSLE-systray_0.1.0_linux_x64.deb"
 
-# Install using dpkg
+# Install using dpkg (installs to /usr/local/bin)
 sudo dpkg -i gefesle-systray.deb
 
 # If there are dependency issues, fix them with:
 sudo apt-get install -f
+
+# The binary will be available as 'GeFeSLE-systray' from anywhere
 ```
 
 #### Option 2: Red Hat/CentOS/Fedora (.rpm package)
@@ -53,7 +63,7 @@ For Red Hat, CentOS, Fedora, and other RPM-based distributions:
 # Download the .rpm package
 curl -L -o gefesle-systray.rpm "https://github.com/tezoatlipoca/GeFeSLE-systray/releases/download/v0.1.0/GeFeSLE-systray_0.1.0_linux_x64.rpm"
 
-# Install using rpm (CentOS/RHEL)
+# Install using rpm (CentOS/RHEL) - installs to /usr/local/bin
 sudo rpm -i gefesle-systray.rpm
 
 # Or using dnf (Fedora)
@@ -61,6 +71,8 @@ sudo dnf install gefesle-systray.rpm
 
 # Or using yum (older systems)
 sudo yum install gefesle-systray.rpm
+
+# The binary will be available as 'GeFeSLE-systray' from anywhere
 ```
 
 #### Option 3: Manual Installation (Any Linux Distribution)
@@ -73,11 +85,16 @@ curl -L -o gefesle-systray-linux.tar.gz "https://github.com/tezoatlipoca/GeFeSLE
 # Extract to a local directory
 tar -xzf gefesle-systray-linux.tar.gz
 
-# Move to a directory in your PATH (optional)
+# Option A: System-wide installation (requires sudo)
 sudo mv GeFeSLE-systray /usr/local/bin/
+sudo chmod +x /usr/local/bin/GeFeSLE-systray
 
-# Make executable (if needed)
-chmod +x /usr/local/bin/GeFeSLE-systray
+# Option B: User-specific installation
+mkdir -p ~/bin
+mv GeFeSLE-systray ~/bin/
+chmod +x ~/bin/GeFeSLE-systray
+echo 'export PATH="$HOME/bin:$PATH"' >> ~/.bashrc
+source ~/.bashrc
 
 # Run the application
 GeFeSLE-systray
