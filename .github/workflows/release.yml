@@ -28,7 +28,7 @@ jobs:
 
       - name: Build
         run: |
-          dotnet publish -c Release -r win-x64 --self-contained true -p:IncludeAllContentForSelfExtract=true
+          dotnet publish -c Release -r win-x64 --self-contained true
 
       - name: Archive Windows Binary
         id: winzip
