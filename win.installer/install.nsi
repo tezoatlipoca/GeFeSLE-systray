@@ -36,9 +36,8 @@ VIAddVersionKey "FileVersion" "${VERSION}"
 Section "Install"
   SetOutPath "$INSTDIR"
 
-  ; Add files - copy all files from publish folder
+  ; Add files - copy the self-contained executable (single file)
   File "..\bin\Release\net8.0\win-x64\publish\GeFeSLE-systray.exe"
-  File "..\bin\Release\net8.0\win-x64\publish\*.dll"
 
   ; Check for existing version
   ReadRegStr $R0 HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\GeFeSLE-systray" "DisplayVersion"
