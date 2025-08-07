@@ -9,7 +9,7 @@
         x:Class="GeFeSLE.Views.MainWindow"
         x:DataType="vm:MainWindowViewModel"
         Icon="/Assets/gefesleff.ico"
-        Title="GeFeSLE">
+        Title="{Binding WindowTitle}">
 
     <Design.DataContext>
         <!-- This only sets the DataContext for the previewer in an IDE,
@@ -170,12 +170,6 @@
                             </Button.Content>
                         </Button>
                         
-                        <!-- Combined status field -->
-                        <TextBlock Text="{Binding CombinedStatus}" 
-                                   IsVisible="{Binding CombinedStatus, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
-                                   Foreground="Orange" FontSize="11" FontStyle="Italic"
-                                   VerticalAlignment="Center"
-                                   Margin="0,0,10,5"/>
                     </WrapPanel>
                 </DockPanel>
             </StackPanel>
@@ -186,7 +180,24 @@
                 <Border BorderBrush="LightGray" BorderThickness="1" CornerRadius="5" Padding="15"
                         Background="#F8F8F8" IsVisible="{Binding MetadataPanelExpanded}">
                     <StackPanel Spacing="10">
-                        <TextBlock Text="List Information" FontWeight="Bold" FontSize="14" Foreground="Black"/>
+                        <Grid ColumnDefinitions="*,Auto">
+                            <TextBlock Grid.Column="0" 
+                                       Text="List Information" 
+                                       FontWeight="Bold" 
+                                       FontSize="14" 
+                                       Foreground="Black"/>
+                            <Button Grid.Column="1"
+                                    Content="🔗 View on Server"
+                                    Command="{Binding DataContext.OpenListOnServerCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                    CommandParameter="{Binding SelectedList}"
+                                    Background="DodgerBlue"
+                                    Foreground="White"
+                                    Padding="8,4"
+                                    BorderThickness="0"
+                                    CornerRadius="4"
+                                    FontSize="10"
+                                    Cursor="Hand"/>
+                        </Grid>
                         
                         <!-- Basic Metadata -->
                         <StackPanel Spacing="5">
@@ -547,23 +558,32 @@
                                     <CheckBox Content="Remember login" 
                                               IsChecked="{Binding SettingsViewModel.RememberLogin}"
                                               Foreground="White"/>
-                                    <Button Content="Login" 
-                                            Command="{Binding SettingsViewModel.LoginCommand}"
-                                            Classes="settingsLogin"/>
+                                    <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+                                        <Button Grid.Column="0"
+                                                Content="Login" 
+                                                Command="{Binding SettingsViewModel.LoginCommand}"
+                                                Classes="settingsLogin"/>
+                                        <Button Grid.Column="2"
+                                                Content="Test Connection" 
+                                                Command="{Binding SettingsViewModel.TestConnectionCommand}"
+                                                Classes="settingsTest"/>
+                                    </Grid>
                                 </StackPanel>
                                 
                                 <!-- Logout Section (visible when logged in) -->
                                 <StackPanel IsVisible="{Binding SettingsViewModel.IsLoggedIn}" Spacing="8">
                                     <TextBlock Text="{Binding SettingsViewModel.Username, StringFormat='Logged in as: {0}'}" FontWeight="Bold" Foreground="White"/>
-                                    <Button Content="Logout" 
-                                            Command="{Binding SettingsViewModel.LogoutCommand}"
-                                            Classes="settingsLogout"/>
+                                    <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+                                        <Button Grid.Column="0"
+                                                Content="Logout" 
+                                                Command="{Binding SettingsViewModel.LogoutCommand}"
+                                                Classes="settingsLogout"/>
+                                        <Button Grid.Column="2"
+                                                Content="Test Connection" 
+                                                Command="{Binding SettingsViewModel.TestConnectionCommand}"
+                                                Classes="settingsTest"/>
+                                    </Grid>
                                 </StackPanel>
-                                
-                                <!-- Test Connection button - always visible -->
-                                <Button Content="Test Connection" 
-                                        Command="{Binding SettingsViewModel.TestConnectionCommand}"
-                                        Classes="settingsTest"/>
                                 
                                 <!-- Hotkey Configuration -->
                                 <TextBlock Text="Hotkey Configuration" FontWeight="Bold" Margin="0,20,0,0" Foreground="White"/>
@@ -584,15 +604,17 @@
                                     <TextBlock Text="{Binding SettingsViewModel.HotkeyStatus}" 
                                                Foreground="{Binding SettingsViewModel.HotkeyStatusColor}"
                                                TextWrapping="Wrap"/>
-                                    <TextBlock Text="Tip: On Linux, click the system tray icon to toggle window visibility, or set up a custom shortcut in your desktop environment settings."
-                                               FontSize="11" Foreground="Gray" TextWrapping="Wrap" Margin="0,5,0,0"/>
+                                </StackPanel>
+                                
+                                <!-- UI Behavior Configuration -->
+                                <TextBlock Text="UI Behavior" FontWeight="Bold" Margin="0,20,0,0" Foreground="White"/>
+                                <StackPanel Spacing="8">
+                                    <CheckBox Content="Confirm before deleting items" 
+                                              IsChecked="{Binding SettingsViewModel.ConfirmItemDeletion}"
+                                              Foreground="White"/>
                                 </StackPanel>
                             </StackPanel>
                             
-                            <!-- Status Message -->
-                            <TextBlock Text="{Binding SettingsViewModel.StatusMessage}" 
-                                       IsVisible="{Binding SettingsViewModel.StatusMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
-                                       Foreground="Blue"/>
                         </StackPanel>
                     </ScrollViewer>
                 </Grid>
@@ -843,6 +865,90 @@
                             </ListBox.ItemTemplate>
                         </ListBox>
                     </StackPanel>
+                </Grid>
+            </Border>
+        </Border>
+        
+        <!-- Notification Overlay -->
+        <Border IsVisible="{Binding NotificationVisible}"
+                Background="Transparent"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Top"
+                Margin="0,20,0,0">
+            <Border Background="#E0000000"
+                    CornerRadius="8"
+                    Padding="15,10">
+                <TextBlock Text="{Binding NotificationMessage}"
+                           Foreground="{Binding NotificationColor}"
+                           FontWeight="Bold"
+                           TextAlignment="Center"/>
+            </Border>
+        </Border>
+        
+        <!-- Confirmation Dialog Overlay -->
+        <Border IsVisible="{Binding ConfirmationDialogVisible}"
+                Background="#E0000000"
+                HorizontalAlignment="Stretch"
+                VerticalAlignment="Stretch">
+            <!-- Confirmation Card -->
+            <Border Background="Black"
+                    CornerRadius="8"
+                    Padding="20"
+                    MaxWidth="400"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center">
+                <Grid RowDefinitions="Auto,Auto,Auto">
+                    <!-- Header -->
+                    <Border Grid.Row="0" 
+                            Background="DarkRed" 
+                            CornerRadius="8,8,0,0" 
+                            Padding="15,10"
+                            Margin="-20,-20,-20,0">
+                        <StackPanel Orientation="Horizontal" Spacing="10">
+                            <TextBlock Text="⚠️" FontSize="16" VerticalAlignment="Center"/>
+                            <TextBlock Text="Confirm Deletion" 
+                                       FontWeight="Bold" 
+                                       FontSize="16" 
+                                       Foreground="White"
+                                       VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Border>
+                    
+                    <!-- Message -->
+                    <TextBlock Grid.Row="1"
+                               Text="{Binding ConfirmationMessage}"
+                               Foreground="White"
+                               TextWrapping="Wrap"
+                               FontSize="14"
+                               Margin="0,20,0,20"
+                               TextAlignment="Center"/>
+                    
+                    <!-- Buttons -->
+                    <Grid Grid.Row="2" ColumnDefinitions="*,Auto,Auto">
+                        <!-- Spacer -->
+                        <Border Grid.Column="0"/>
+                        
+                        <!-- Cancel button -->
+                        <Button Grid.Column="1"
+                                Content="Cancel"
+                                Command="{Binding CancelDeleteCommand}"
+                                Background="Gray"
+                                Foreground="White"
+                                Padding="15,8"
+                                Margin="0,0,10,0"
+                                BorderThickness="0"
+                                MinWidth="80"/>
+                                
+                        <!-- Confirm button -->
+                        <Button Grid.Column="2"
+                                Content="Delete"
+                                Command="{Binding ConfirmDeleteCommand}"
+                                Background="DarkRed"
+                                Foreground="White"
+                                Padding="15,8"
+                                BorderThickness="0"
+                                MinWidth="80"/>
+                    </Grid>
                 </Grid>
             </Border>
         </Border>

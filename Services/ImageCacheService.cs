@@ -28,9 +28,9 @@ namespace GeFeSLE.Services
         private readonly string _cacheDirectory;
         private static readonly TimeSpan CacheExpiry = TimeSpan.FromHours(24); // Images expire after 24 hours
 
-        public ImageCacheService()
+        public ImageCacheService(HttpClient? httpClient = null)
         {
-            _httpClient = new HttpClient();
+            _httpClient = httpClient ?? new HttpClient();
             _httpClient.Timeout = TimeSpan.FromSeconds(10);
             
             // Create cache directory in the application's data folder
@@ -155,8 +155,10 @@ namespace GeFeSLE.Services
                 {
                     try
                     {
-                        await using var fileStream = File.OpenRead(cachedFilePath);
+                        DBg.d(LogLevel.Debug, $"Loading image from disk cache: {cachedFilePath}");
+                        var fileStream = File.OpenRead(cachedFilePath);
                         var bitmap = new Bitmap(fileStream);
+                        DBg.d(LogLevel.Debug, $"Successfully loaded cached bitmap for {imageUrl} - Size: {bitmap.Size}");
                         cachedImage.Bitmap = bitmap;
                         cachedImage.IsLoaded = true;
                         _imageCache[imageUrl] = cachedImage;
@@ -170,16 +172,19 @@ namespace GeFeSLE.Services
                 }
 
                 // Download from internet
+                DBg.d(LogLevel.Debug, $"Downloading image from {imageUrl}");
                 var response = await _httpClient.GetAsync(imageUrl);
                 
                 if (response.IsSuccessStatusCode)
                 {
                     var imageBytes = await response.Content.ReadAsByteArrayAsync();
+                    DBg.d(LogLevel.Debug, $"Downloaded {imageBytes.Length} bytes for {imageUrl}");
                     
                     // Save to disk cache
                     try
                     {
                         await File.WriteAllBytesAsync(cachedFilePath, imageBytes);
+                        DBg.d(LogLevel.Debug, $"Cached image to disk: {cachedFilePath}");
                     }
                     catch (Exception ex)
                     {
@@ -187,14 +192,26 @@ namespace GeFeSLE.Services
                     }
 
                     // Create bitmap
-                    using var stream = new MemoryStream(imageBytes);
-                    var bitmap = new Bitmap(stream);
-                    
-                    cachedImage.Bitmap = bitmap;
-                    cachedImage.IsLoaded = true;
+                    try
+                    {
+                        var stream = new MemoryStream(imageBytes);
+                        DBg.d(LogLevel.Debug, $"Created MemoryStream with {stream.Length} bytes for {imageUrl}");
+                        var bitmap = new Bitmap(stream);
+                        DBg.d(LogLevel.Debug, $"Successfully created bitmap for {imageUrl} - Size: {bitmap.Size}");
+                        
+                        cachedImage.Bitmap = bitmap;
+                        cachedImage.IsLoaded = true;
+                    }
+                    catch (Exception ex)
+                    {
+                        DBg.d(LogLevel.Error, $"Failed to create bitmap for {imageUrl}: {ex.Message}");
+                        cachedImage.ErrorMessage = $"Error: {ex.Message}";
+                        cachedImage.IsLoaded = true;
+                    }
                 }
                 else
                 {
+                    DBg.d(LogLevel.Warning, $"HTTP request failed for {imageUrl}: {(int)response.StatusCode} {response.ReasonPhrase}");
                     cachedImage.ErrorMessage = $"HTTP {(int)response.StatusCode} {response.ReasonPhrase}";
                     cachedImage.IsLoaded = true;
                 }

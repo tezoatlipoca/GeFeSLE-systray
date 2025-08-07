@@ -24,6 +24,11 @@ public partial class MainWindow : Window
     // For scroll position preservation during item expansion/collapse
     private Point _lastCursorPosition;
 
+    // Parameterless constructor for XAML designer support
+    public MainWindow() : this(new MainWindowViewModel(new SettingsService(), new GeFeSLEApiClient(new System.Net.Http.HttpClient()), new HotkeyService(new SettingsService()), new ImageCacheService(new System.Net.Http.HttpClient()), new SessionHeartbeatService(new GeFeSLEApiClient(new System.Net.Http.HttpClient()), new SettingsService())), new SettingsService(), new HotkeyService(new SettingsService()))
+    {
+    }
+
     public MainWindow(MainWindowViewModel viewModel, SettingsService settingsService, HotkeyService hotkeyService)
     {
         _settingsService = settingsService;

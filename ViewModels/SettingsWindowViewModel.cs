@@ -4,6 +4,7 @@ using GeFeSLE.Services;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
+using System;
 
 namespace GeFeSLE.ViewModels;
 
@@ -12,6 +13,9 @@ public partial class SettingsWindowViewModel : ViewModelBase
     private readonly SettingsService _settingsService;
     private readonly GeFeSLEApiClient _apiClient;
     private readonly HotkeyService _hotkeyService;
+
+    // Event for notifying parent about status messages
+    public event Action<string, string>? NotificationRequested;
 
     [ObservableProperty]
     private string? serverUrl;
@@ -50,6 +54,10 @@ public partial class SettingsWindowViewModel : ViewModelBase
     [ObservableProperty]
     private string hotkeyStatusColor = "Green";
 
+    // UI Behavior settings
+    [ObservableProperty]
+    private bool confirmItemDeletion = true;
+
     public SettingsWindowViewModel(SettingsService settingsService, GeFeSLEApiClient apiClient, HotkeyService hotkeyService)
     {
         _settingsService = settingsService;
@@ -67,6 +75,9 @@ public partial class SettingsWindowViewModel : ViewModelBase
         SelectedKey = _settingsService.Settings.HotkeyKey;
         AvailableModifiers = _hotkeyService.GetAvailableModifiers();
         AvailableKeys = _hotkeyService.GetAvailableKeys();
+        
+        // Load UI behavior settings
+        ConfirmItemDeletion = _settingsService.Settings.ConfirmItemDeletion;
         
         // Set base address in API client if we have a server URL
         if (!string.IsNullOrEmpty(ServerUrl))
@@ -90,6 +101,12 @@ public partial class SettingsWindowViewModel : ViewModelBase
     {
     }
 
+    private void ShowNotification(string message, string color = "LimeGreen")
+    {
+        StatusMessage = message; // Keep for backwards compatibility
+        NotificationRequested?.Invoke(message, color);
+    }
+
     [RelayCommand]
     private async Task Login()
     {
@@ -108,7 +125,7 @@ public partial class SettingsWindowViewModel : ViewModelBase
         {
             IsLoggedIn = true;
             Username = user.UserName; // Update the username from the server response
-            StatusMessage = $"Session validated. Logged in as {user.UserName}.";
+            ShowNotification($"Session validated. Logged in as {user.UserName}.", "LimeGreen");
             return true;
         }
         else
@@ -145,10 +162,10 @@ public partial class SettingsWindowViewModel : ViewModelBase
     
     private async Task PerformLoginAsync()
     {
-        StatusMessage = "Logging in...";
+        ShowNotification("Logging in...", "DodgerBlue");
         if (string.IsNullOrWhiteSpace(ServerUrl) || string.IsNullOrWhiteSpace(Username) || string.IsNullOrWhiteSpace(Password))
         {
-            StatusMessage = "Please fill in all fields.";
+            ShowNotification("Please fill in all fields.", "Orange");
             return;
         }
         _apiClient.SetBaseAddress(ServerUrl);
@@ -167,50 +184,58 @@ public partial class SettingsWindowViewModel : ViewModelBase
             IsLoggedIn = true;
             if (!string.IsNullOrEmpty(response.Username) && !string.IsNullOrEmpty(response.Role))
             {
-                StatusMessage = $"Login successful. Logged in as {response.Username} with role: {response.Role}";
+                ShowNotification($"Login successful. Logged in as {response.Username} with role: {response.Role}", "LimeGreen");
             }
             else
             {
-                StatusMessage = "Login successful.";
+                ShowNotification("Login successful.", "LimeGreen");
             }
         }
         else
         {
-            StatusMessage = response.ErrorMessage ?? "Login failed.";
+            ShowNotification(response.ErrorMessage ?? "Login failed.", "Orange");
         }
     }
 
     [RelayCommand]
-    private void Logout()
+    private async Task Logout()
     {
+        ShowNotification("Logging out...", "DodgerBlue");
+        
+        // Call the server logout endpoint
+        var logoutSuccess = await _apiClient.LogoutAsync();
+        
+        // Clear local settings regardless of server response
         _settingsService.ClearLoginInfo();
-        // Also recreate the HttpClient to clear cookies
+        
+        // Recreate the HttpClient to clear cookies (additional cleanup)
         if (!string.IsNullOrEmpty(ServerUrl))
         {
             _apiClient.SetBaseAddress(ServerUrl);
         }
+        
         IsLoggedIn = false;
-        StatusMessage = "Logged out.";
+        ShowNotification(logoutSuccess ? "Logged out successfully." : "Logged out (server logout may have failed).", logoutSuccess ? "LimeGreen" : "Orange");
     }
 
     [RelayCommand]
     private async Task TestConnection()
     {
-        StatusMessage = "Testing connection...";
+        ShowNotification("Testing connection...", "DodgerBlue");
         if (string.IsNullOrWhiteSpace(ServerUrl))
         {
-            StatusMessage = "Please enter a server URL.";
+            ShowNotification("Please enter a server URL.", "Orange");
             return;
         }
         _apiClient.SetBaseAddress(ServerUrl);
         var user = await _apiClient.GetCurrentUserAsync();
         if (user != null && user.IsAuthenticated)
         {
-            StatusMessage = $"Connected. Logged in as {user.UserName}.";
+            ShowNotification($"Connected. Logged in as {user.UserName}.", "LimeGreen");
         }
         else
         {
-            StatusMessage = "Connection failed or not authenticated.";
+            ShowNotification("Connection failed or not authenticated.", "Orange");
         }
     }
 
@@ -236,6 +261,12 @@ public partial class SettingsWindowViewModel : ViewModelBase
     partial void OnRememberLoginChanged(bool value)
     {
         _settingsService.Settings.RememberLogin = value;
+        _settingsService.SaveSettings();
+    }
+
+    partial void OnConfirmItemDeletionChanged(bool value)
+    {
+        _settingsService.Settings.ConfirmItemDeletion = value;
         _settingsService.SaveSettings();
     }
 

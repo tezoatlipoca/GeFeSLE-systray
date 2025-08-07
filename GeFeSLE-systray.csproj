@@ -6,14 +6,43 @@
     <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <AvaloniaUseCompiledBindingsByDefault>false</AvaloniaUseCompiledBindingsByDefault>
+    
+    <!-- Version Information -->
+    <Version>0.1.1</Version>
+    <AssemblyVersion>0.1.1.0</AssemblyVersion>
+    <FileVersion>0.1.1.0</FileVersion>
+    <Product>GeFeSLE-systray</Product>
+    <Company>tezoatlipoca</Company>
+    <Copyright>© tezoatlipoca</Copyright>
+    <Description>Systray application for GeFeSLE</Description>
+    
+    <!-- Publishing optimizations -->
     <PublishSingleFile>true</PublishSingleFile>
     <PublishSelfContained>true</PublishSelfContained>
+    <PublishTrimmed>true</PublishTrimmed>
+    <PublishReadyToRun>false</PublishReadyToRun>
+    <TrimMode>partial</TrimMode>
     <RuntimeIdentifiers>win-x64;linux-x64</RuntimeIdentifiers>
+    
+    <!-- Size optimizations -->
+    <DebuggerSupport>false</DebuggerSupport>
+    <EnableUnsafeBinaryFormatterSerialization>false</EnableUnsafeBinaryFormatterSerialization>
+    <EnableUnsafeUTF7Encoding>false</EnableUnsafeUTF7Encoding>
+    <HttpActivityPropagationSupport>false</HttpActivityPropagationSupport>
+    <InvariantGlobalization>false</InvariantGlobalization>
+    <MetadataUpdaterSupport>false</MetadataUpdaterSupport>
+    <UseSystemResourceKeys>true</UseSystemResourceKeys>
+    <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
+    <IncludeAllContentForSelfExtract>true</IncludeAllContentForSelfExtract>
+    
+    <!-- Avalonia trimming support -->
+    <TrimmableAssembly>true</TrimmableAssembly>
   </PropertyGroup>
 
   <ItemGroup>
     <Folder Include="Models\" />
     <AvaloniaResource Include="Assets\**" />
+    <TrimmerRootDescriptor Include="ILLink.Descriptors.xml" />
   </ItemGroup>
 
   <ItemGroup>
@@ -31,5 +60,27 @@
     <PackageReference Include="Markdown.Avalonia" Version="11.0.2" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.7" />
     <PackageReference Include="Microsoft.Extensions.Http" Version="9.0.7" />
+  </ItemGroup>
+
+  <!-- Release-specific optimizations -->
+  <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+    <Optimize>true</Optimize>
+    <DebugType>none</DebugType>
+    <DebugSymbols>false</DebugSymbols>
+    <StripSymbols>true</StripSymbols>
+  </PropertyGroup>
+
+  <!-- Trimming warnings suppression for known safe scenarios -->
+  <PropertyGroup>
+    <SuppressTrimAnalysisWarnings>true</SuppressTrimAnalysisWarnings>
+    <NoWarn>$(NoWarn);IL2026;IL2057;IL2067;IL2070;IL2072;IL2075;IL2077;NETSDK1194;AVLN3001</NoWarn>
+  </PropertyGroup>
+
+  <!-- Runtime configuration for memory optimization -->
+  <ItemGroup>
+    <RuntimeHostConfigurationOption Include="System.GC.Server" Value="false" />
+    <RuntimeHostConfigurationOption Include="System.GC.Concurrent" Value="true" />
+    <RuntimeHostConfigurationOption Include="System.GC.RetainVM" Value="false" />
+    <RuntimeHostConfigurationOption Include="System.Runtime.Serialization.EnableUnsafeBinaryFormatterSerialization" Value="false" />
   </ItemGroup>
 </Project>

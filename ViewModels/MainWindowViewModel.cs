@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
 using System.Threading.Tasks;
+using System.Timers;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using GeFeSLE.Models;
@@ -34,15 +35,6 @@ public partial class MainWindowViewModel : ViewModelBase
     
     [ObservableProperty]
     private string statusMessage = string.Empty;
-    
-    [ObservableProperty]
-    private string imageStatus = string.Empty;
-    
-    [ObservableProperty]
-    private string itemCountStatus = string.Empty;
-    
-    [ObservableProperty]
-    private string combinedStatus = string.Empty;
     
     [ObservableProperty]
     private string dropdownPlaceholder = "Log in first (see Settings)";
@@ -92,21 +84,58 @@ public partial class MainWindowViewModel : ViewModelBase
     [ObservableProperty]
     private ObservableCollection<GeList> availableMoveLists = new();
     
+    // Notification properties
+    [ObservableProperty]
+    private bool notificationVisible = false;
+    
+    [ObservableProperty]
+    private string notificationMessage = string.Empty;
+    
+    [ObservableProperty]
+    private string notificationColor = "LimeGreen";
+    
+    // Window title with memory usage
+    [ObservableProperty]
+    private string windowTitle = "GeFeSLE";
+    
+    // Memory monitoring timer
+    private Timer? _memoryTimer;
+    
+    // Confirmation dialog properties
+    [ObservableProperty]
+    private bool confirmationDialogVisible = false;
+    
+    [ObservableProperty]
+    private string confirmationMessage = string.Empty;
+    
+    [ObservableProperty]
+    private GeListItem? itemToDelete = null;
+    
+    private TaskCompletionSource<bool>? _confirmationTaskSource;
+    
     // Store all items (unfiltered) for search functionality
     private List<GeListItem> _allItems = new List<GeListItem>();
+    
+    // Track whether filters were previously active
+    private bool _previouslyFiltered = false;
     
     // Event for scroll position preservation
     public event Action<GeListItem>? ItemExpansionChanged;
 
     public string Greeting { get; } = "Welcome to Avalonia!";
     public SettingsWindowViewModel SettingsViewModel { get; }
+    private readonly SessionHeartbeatService _heartbeatService;
 
-    public MainWindowViewModel(SettingsService settingsService, GeFeSLEApiClient apiClient, HotkeyService hotkeyService, ImageCacheService imageCacheService)
+    public MainWindowViewModel(SettingsService settingsService, GeFeSLEApiClient apiClient, HotkeyService hotkeyService, ImageCacheService imageCacheService, SessionHeartbeatService heartbeatService)
     {
         _apiClient = apiClient;
         _settingsService = settingsService;
         _imageCacheService = imageCacheService;
+        _heartbeatService = heartbeatService;
         SettingsViewModel = new SettingsWindowViewModel(settingsService, apiClient, hotkeyService);
+        
+        // Subscribe to notification requests from settings
+        SettingsViewModel.NotificationRequested += (message, color) => ShowNotification(message, color);
         
         // Initialize metadata panel state from settings
         MetadataPanelExpanded = _settingsService.Settings.MetadataPanelExpanded;
@@ -126,6 +155,9 @@ public partial class MainWindowViewModel : ViewModelBase
                 {
                     DropdownPlaceholder = "Select a list...";
                     _ = LoadListsAsync();
+                    
+                    // Start heartbeat monitoring when logged in
+                    _heartbeatService.StartHeartbeat();
                 }
                 else
                 {
@@ -133,12 +165,68 @@ public partial class MainWindowViewModel : ViewModelBase
                     AvailableLists.Clear();
                     SelectedList = null;
                     HasListMetadata = false;
+                    
+                    // Stop heartbeat monitoring when logged out
+                    _heartbeatService.StopHeartbeat();
                 }
             }
         };
         
+        // Subscribe to heartbeat service events
+        _heartbeatService.SessionStatusChanged += OnSessionStatusChanged;
+        
         // Try auto-login if credentials are saved
         _ = TryAutoLoginAsync();
+        
+        // Initialize memory monitoring timer
+        InitializeMemoryTimer();
+    }
+
+    private void InitializeMemoryTimer()
+    {
+        _memoryTimer = new Timer(10000); // Update every 10 seconds
+        _memoryTimer.Elapsed += (sender, e) => UpdateMemoryUsage();
+        _memoryTimer.AutoReset = true;
+        _memoryTimer.Start();
+        
+        // Update immediately
+        UpdateMemoryUsage();
+    }
+
+    private void UpdateMemoryUsage()
+    {
+        Dispatcher.UIThread.Post(() =>
+        {
+            try
+            {
+                var memoryUsage = DBg.GetMemoryUsage();
+                WindowTitle = $"GeFeSLE - RAM: {memoryUsage}";
+            }
+            catch (Exception ex)
+            {
+                DBg.d(LogLevel.Warning, $"Failed to update memory usage in title: {ex.Message}");
+                WindowTitle = "GeFeSLE";
+            }
+        });
+    }
+
+    private async void ShowNotification(string message, string color = "LimeGreen", int durationMs = 3000)
+    {
+        await Dispatcher.UIThread.InvokeAsync(() =>
+        {
+            NotificationMessage = message;
+            NotificationColor = color;
+            NotificationVisible = true;
+        });
+
+        // Auto-hide after specified duration
+        _ = Task.Delay(durationMs).ContinueWith(_ =>
+        {
+            Dispatcher.UIThread.InvokeAsync(() =>
+            {
+                NotificationVisible = false;
+            });
+        });
     }
 
     private async Task TryAutoLoginAsync()
@@ -147,15 +235,18 @@ public partial class MainWindowViewModel : ViewModelBase
         if (!string.IsNullOrEmpty(_settingsService.Settings.SessionCookies) &&
             !string.IsNullOrEmpty(_settingsService.Settings.ServerUrl))
         {
-            StatusMessage = "Validating saved session...";
+            ShowNotification("Validating saved session...", "DodgerBlue");
             
             var sessionValid = await SettingsViewModel.ValidateExistingSessionAsync();
             if (sessionValid)
             {
                 // Session is still valid, we're logged in
                 DropdownPlaceholder = "Select a list...";
-                StatusMessage = "Loading lists...";
+                ShowNotification("Loading lists...", "DodgerBlue");
                 await LoadListsAsync();
+                
+                // Start heartbeat monitoring since we're logged in
+                _heartbeatService.StartHeartbeat();
                 return;
             }
             else
@@ -171,27 +262,66 @@ public partial class MainWindowViewModel : ViewModelBase
             !string.IsNullOrEmpty(_settingsService.GetPassword()) &&
             !string.IsNullOrEmpty(_settingsService.Settings.ServerUrl))
         {
-            StatusMessage = "Auto-logging in with saved credentials...";
+            ShowNotification("Auto-logging in with saved credentials...", "DodgerBlue");
             await SettingsViewModel.AttemptAutoLoginAsync();
             
             // After auto-login attempt, check if we're now logged in and load lists
             if (SettingsViewModel.IsLoggedIn)
             {
                 DropdownPlaceholder = "Select a list...";
-                StatusMessage = "Loading lists...";
+                ShowNotification("Loading lists...", "DodgerBlue");
                 await LoadListsAsync();
+                
+                // Start heartbeat monitoring since auto-login succeeded
+                _heartbeatService.StartHeartbeat();
             }
             else
             {
-                StatusMessage = "Auto-login failed. Please check your credentials in Settings.";
+                ShowNotification("Auto-login failed. Please check your credentials in Settings.", "Orange");
                 DropdownPlaceholder = "Log in first (see Settings)";
             }
         }
         else
         {
             DropdownPlaceholder = "Log in first (see Settings)";
-            StatusMessage = "";
         }
+    }
+
+    private void OnSessionStatusChanged(object? sender, SessionStatusChangedEventArgs e)
+    {
+        // This runs on a background thread, so we need to dispatch to the UI thread
+        Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+        {
+            if (e.IsAuthenticated)
+            {
+                // Session is healthy or re-authenticated successfully
+                if (e.StatusMessage == "Automatically re-authenticated")
+                {
+                    StatusMessage = "Session restored automatically";
+                    // Reload lists since we might have been disconnected
+                    _ = LoadListsAsync();
+                }
+                // For regular heartbeat success, don't update UI since user might be working
+                
+                // Ensure SettingsViewModel knows we're logged in
+                if (!SettingsViewModel.IsLoggedIn)
+                {
+                    SettingsViewModel.IsLoggedIn = true;
+                }
+            }
+            else
+            {
+                // Session lost and couldn't be restored
+                StatusMessage = e.StatusMessage ?? "Session expired";
+                DropdownPlaceholder = "Log in first (see Settings)";
+                AvailableLists.Clear();
+                SelectedList = null;
+                HasListMetadata = false;
+                
+                // Update SettingsViewModel
+                SettingsViewModel.IsLoggedIn = false;
+            }
+        });
     }
 
     [RelayCommand]
@@ -204,10 +334,8 @@ public partial class MainWindowViewModel : ViewModelBase
     {
         IsLoadingItems = true;
         // Clear previous status when starting to load new list
-        ImageStatus = "";
-        ItemCountStatus = "";
         StatusMessage = "";
-        UpdateCombinedStatus();
+        _previouslyFiltered = false; // Reset filter state for new list
         
         try
         {
@@ -228,8 +356,7 @@ public partial class MainWindowViewModel : ViewModelBase
                 var visibleItems = items.Where(item => item != null && item.Visible).ToList();
                 
                 // Phase 1: Extract all image URLs from all items before rendering any UI
-                ImageStatus = "Extracting images...";
-                UpdateCombinedStatus();
+                ShowNotification("Extracting images...", "DodgerBlue", 2000);
                 var allImageUrls = new List<string>();
                 
                 foreach (var item in visibleItems)
@@ -272,22 +399,19 @@ public partial class MainWindowViewModel : ViewModelBase
                 if (allImageUrls.Count > 0)
                 {
                     DBg.d(LogLevel.Debug, $"Found {allImageUrls.Count} images to preload");
-                    ImageStatus = $"Loading 0 / {allImageUrls.Count} images";
-                    UpdateCombinedStatus();
+                    ShowNotification($"Loading 0 / {allImageUrls.Count} images", "DodgerBlue", 5000);
                     
                     var successfulLoads = await _imageCacheService.PreloadImagesAsync(allImageUrls, (completed, successful, total) =>
                     {
-                        // Update status on UI thread
+                        // Update status on UI thread with temporary notification
                         Dispatcher.UIThread.Post(() =>
                         {
-                            ImageStatus = $"Loading {successful} / {total} images";
-                            UpdateCombinedStatus();
+                            ShowNotification($"Loading {successful} / {total} images", "DodgerBlue", 1000);
                         });
                     });
                     
                     // Final status after loading complete
-                    ImageStatus = $"Loaded {successfulLoads} / {allImageUrls.Count} images";
-                    UpdateCombinedStatus();
+                    ShowNotification($"Loaded {successfulLoads} / {allImageUrls.Count} images", "LimeGreen", 3000);
                     
                     DBg.d(LogLevel.Debug, "All images preloaded successfully");
                 }
@@ -326,17 +450,12 @@ public partial class MainWindowViewModel : ViewModelBase
                 
                 DBg.d(LogLevel.Debug, $"Loaded {ListItems.Count} valid items with all images preloaded");
                 StatusMessage = "";
-                // Keep ImageStatus showing the final loaded count, don't clear it
-                UpdateCombinedStatus();
             }
             else
             {
                 _allItems.Clear();
                 ListItems.Clear();
-                ItemCountStatus = "";
-                ImageStatus = "";
                 StatusMessage = "";
-                UpdateCombinedStatus();
                 DBg.d(LogLevel.Debug, "No items found or empty response");
             }
         }
@@ -344,9 +463,6 @@ public partial class MainWindowViewModel : ViewModelBase
         {
             DBg.d(LogLevel.Error, $"Error loading list items: {ex.Message}");
             StatusMessage = $"Error: {ex.Message}";
-            ItemCountStatus = "";
-            ImageStatus = "";
-            UpdateCombinedStatus();
         }
         finally
         {
@@ -476,8 +592,13 @@ public partial class MainWindowViewModel : ViewModelBase
             
         try
         {
-            // Show confirmation dialog (in a real app you'd use a proper dialog)
-            // For now, we'll just proceed with deletion
+            // Check if confirmation is enabled and show dialog if needed
+            if (_settingsService.Settings.ConfirmItemDeletion)
+            {
+                bool confirmed = await ShowDeleteConfirmationDialog(item);
+                if (!confirmed)
+                    return; // User cancelled deletion
+            }
             
             // Delete the item from the server
             bool success = await _apiClient.DeleteItemAsync(SelectedList.Id, item.Id);
@@ -485,6 +606,7 @@ public partial class MainWindowViewModel : ViewModelBase
             if (success)
             {
                 DBg.d(LogLevel.Debug, $"Successfully deleted item {item.Id} from list {SelectedList.Id}");
+                ShowNotification($"Item '{item.Name}' deleted successfully", "LimeGreen");
                 
                 // Refresh the items list to remove the deleted item
                 await LoadListItemsAsync(SelectedList.Id);
@@ -492,13 +614,13 @@ public partial class MainWindowViewModel : ViewModelBase
             else
             {
                 DBg.d(LogLevel.Error, $"Failed to delete item {item.Id} from list {SelectedList.Id} - server returned error");
-                // TODO: Show error message to user in the UI
+                ShowNotification("Failed to delete item", "Orange");
             }
         }
         catch (Exception ex)
         {
             DBg.d(LogLevel.Error, $"Failed to delete item: {ex.Message}");
-            // TODO: Show error message to user in the UI
+            ShowNotification($"Error deleting item: {ex.Message}", "Orange");
         }
     }
     
@@ -742,6 +864,36 @@ public partial class MainWindowViewModel : ViewModelBase
             }
         }
     }
+
+    [RelayCommand]
+    private void OpenListOnServer(GeList list)
+    {
+        if (list != null && !string.IsNullOrEmpty(_settingsService.Settings.ServerUrl))
+        {
+            try
+            {
+                string serverUrl = _settingsService.Settings.ServerUrl.TrimEnd('/');
+                string listUrl = $"{serverUrl}/lists/{list.Id}";
+                
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = listUrl,
+                    UseShellExecute = true
+                });
+                DBg.d(LogLevel.Debug, $"Opened list on server: {listUrl}");
+                ShowNotification($"Opened list '{list.Name}' in browser", "DodgerBlue");
+            }
+            catch (Exception ex)
+            {
+                DBg.d(LogLevel.Error, $"Failed to open list URL: {ex.Message}");
+                ShowNotification("Failed to open list in browser", "Orange");
+            }
+        }
+        else
+        {
+            ShowNotification("Server URL not configured", "Orange");
+        }
+    }
     
     // Helper methods for tag parsing and validation
     private List<string> ParseTagsFromString(string tagsText)
@@ -877,8 +1029,6 @@ public partial class MainWindowViewModel : ViewModelBase
         if (_allItems == null || _allItems.Count == 0)
         {
             ListItems.Clear();
-            ItemCountStatus = "";
-            UpdateCombinedStatus();
             return;
         }
 
@@ -942,8 +1092,7 @@ public partial class MainWindowViewModel : ViewModelBase
     {
         if (_allItems == null || _allItems.Count == 0)
         {
-            ItemCountStatus = "";
-            UpdateCombinedStatus();
+            _previouslyFiltered = false;
             return;
         }
 
@@ -953,17 +1102,21 @@ public partial class MainWindowViewModel : ViewModelBase
         // Check if any filters are active
         var hasTextFilter = !string.IsNullOrWhiteSpace(TextSearchQuery);
         var hasTagsFilter = !string.IsNullOrWhiteSpace(TagsSearchQuery);
+        var currentlyFiltered = hasTextFilter || hasTagsFilter;
         
-        if (hasTextFilter || hasTagsFilter)
+        if (currentlyFiltered)
         {
-            ItemCountStatus = $"Showing {filteredItems} of {totalItems} items";
+            // Show notification when filters are active
+            ShowNotification($"Showing {filteredItems} of {totalItems} items", "LimeGreen", 4000);
         }
-        else
+        else if (_previouslyFiltered)
         {
-            ItemCountStatus = $"Showing {totalItems} items";
+            // Show notification when filters were just cleared (showing all items)
+            ShowNotification($"Showing all {totalItems} items", "LimeGreen", 3000);
         }
         
-        UpdateCombinedStatus();
+        // Update the previous filter state for next time
+        _previouslyFiltered = currentlyFiltered;
     }
 
     private List<string> ParseSearchTerms(string searchQuery)
@@ -1028,36 +1181,39 @@ public partial class MainWindowViewModel : ViewModelBase
         return terms.Where(t => !string.IsNullOrWhiteSpace(t)).ToList();
     }
 
-    private void UpdateCombinedStatus()
+    /// <summary>
+    /// Cleanup resources when the ViewModel is disposed
+    /// </summary>
+    public void Dispose()
     {
-        var statusParts = new List<string>();
+        _memoryTimer?.Stop();
+        _memoryTimer?.Dispose();
+    }
+
+    /// <summary>
+    /// Shows a confirmation dialog for item deletion
+    /// </summary>
+    private async Task<bool> ShowDeleteConfirmationDialog(GeListItem item)
+    {
+        ConfirmationMessage = $"Are you sure you want to delete the item '{item.Name}'?";
+        ItemToDelete = item;
+        ConfirmationDialogVisible = true;
         
-        // Add image status if available
-        if (!string.IsNullOrWhiteSpace(ImageStatus))
-        {
-            statusParts.Add(ImageStatus);
-        }
-        
-        // Add item count status if available
-        if (!string.IsNullOrWhiteSpace(ItemCountStatus))
-        {
-            statusParts.Add(ItemCountStatus);
-        }
-        
-        // Add other status messages if available
-        if (!string.IsNullOrWhiteSpace(StatusMessage))
-        {
-            statusParts.Add(StatusMessage);
-        }
-        
-        // Combine all status parts
-        if (statusParts.Count > 0)
-        {
-            CombinedStatus = string.Join(" | ", statusParts);
-        }
-        else
-        {
-            CombinedStatus = string.Empty;
-        }
+        _confirmationTaskSource = new TaskCompletionSource<bool>();
+        return await _confirmationTaskSource.Task;
+    }
+
+    [RelayCommand]
+    private void ConfirmDelete()
+    {
+        ConfirmationDialogVisible = false;
+        _confirmationTaskSource?.SetResult(true);
+    }
+
+    [RelayCommand]
+    private void CancelDelete()
+    {
+        ConfirmationDialogVisible = false;
+        _confirmationTaskSource?.SetResult(false);
     }
 }

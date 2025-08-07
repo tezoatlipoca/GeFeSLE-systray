@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<linker>
+  <!-- Preserve all Avalonia types for reflection -->
+  <assembly fullname="Avalonia.Base" preserve="all" />
+  <assembly fullname="Avalonia.Controls" preserve="all" />
+  <assembly fullname="Avalonia.Markup.Xaml" preserve="all" />
+  <assembly fullname="Avalonia.Themes.Fluent" preserve="all" />
+  
+  <!-- Preserve ViewModel types for MVVM binding -->
+  <assembly fullname="CommunityToolkit.Mvvm" preserve="all" />
+  
+  <!-- Preserve HTML parsing capabilities -->
+  <assembly fullname="HtmlAgilityPack" preserve="all" />
+  
+  <!-- Preserve Markdown rendering -->
+  <assembly fullname="Markdown.Avalonia" preserve="all" />
+  
+  <!-- Preserve main application assembly -->
+  <assembly fullname="GeFeSLE-systray" preserve="all" />
+  
+  <!-- Preserve System.Text.Json for settings serialization -->
+  <type fullname="System.Text.Json.*" preserve="all" />
+  
+  <!-- Preserve HTTP client functionality -->
+  <type fullname="System.Net.Http.*" preserve="all" />
+  
+  <!-- Preserve Process start functionality -->
+  <type fullname="System.Diagnostics.Process" preserve="all" />
+  <type fullname="System.Diagnostics.ProcessStartInfo" preserve="all" />
+</linker>

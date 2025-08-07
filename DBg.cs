@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using System.IO;
 using System.Runtime.CompilerServices;
 
@@ -53,6 +54,45 @@ public static class DBg
             default:
                 Console.WriteLine($"db.dump | FATAL: Unexpected value for level: {msg}");
                 return;
+        }
+    }
+
+    /// <summary>
+    /// Gets the current memory usage in MB
+    /// </summary>
+    /// <returns>Memory usage string formatted as "XX.X MB"</returns>
+    public static string GetMemoryUsage()
+    {
+        try
+        {
+            var process = Process.GetCurrentProcess();
+            var workingSetMB = process.WorkingSet64 / (1024.0 * 1024.0);
+            return $"{workingSetMB:F1} MB";
+        }
+        catch (Exception ex)
+        {
+            d(LogLevel.Warning, $"Failed to get memory usage: {ex.Message}");
+            return "-- MB";
+        }
+    }
+
+    /// <summary>
+    /// Gets detailed memory information for debugging
+    /// </summary>
+    /// <returns>Detailed memory info string</returns>
+    public static string GetDetailedMemoryInfo()
+    {
+        try
+        {
+            var process = Process.GetCurrentProcess();
+            var workingSetMB = process.WorkingSet64 / (1024.0 * 1024.0);
+            var gcMemoryMB = GC.GetTotalMemory(false) / (1024.0 * 1024.0);
+            return $"Working Set: {workingSetMB:F1} MB, GC Memory: {gcMemoryMB:F1} MB";
+        }
+        catch (Exception ex)
+        {
+            d(LogLevel.Warning, $"Failed to get detailed memory info: {ex.Message}");
+            return "Memory info unavailable";
         }
     }
 }

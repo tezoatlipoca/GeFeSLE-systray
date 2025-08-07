@@ -85,6 +85,19 @@ public class GeFeSLEApiClient
         return null;
     }
 
+    // Get an HttpClient configured with the same authentication cookies
+    public HttpClient GetAuthenticatedHttpClient()
+    {
+        var handler = new HttpClientHandler() { CookieContainer = _cookieContainer };
+        var client = new HttpClient(handler);
+        client.Timeout = TimeSpan.FromSeconds(10);
+        if (!string.IsNullOrEmpty(_baseAddress))
+        {
+            client.BaseAddress = new Uri(_baseAddress);
+        }
+        return client;
+    }
+
     // If you need to update login info (e.g., add auth headers/cookies),
     // do it here without recreating the HttpClient:
     public void SetAuthHeader(string name, string value)
@@ -400,6 +413,44 @@ public class GeFeSLEApiClient
         catch (Exception ex)
         {
             DBg.d(LogLevel.Error, $"Error moving item: {ex.Message}");
+        }
+        DBg.d(LogLevel.Trace, "RETURN (false)");
+        return false;
+    }
+
+    public async Task<bool> LogoutAsync()
+    {
+        DBg.d(LogLevel.Trace, "ENTER");
+        try
+        {
+            var request = new HttpRequestMessage(HttpMethod.Get, "/me/delete");
+            DBg.d(LogLevel.Debug, "GET /me/delete");
+            
+            var response = await _httpClient.SendAsync(request);
+            DBg.d(LogLevel.Debug, $"Response: {(int)response.StatusCode} {response.StatusCode}");
+            
+            if (response.IsSuccessStatusCode)
+            {
+                DBg.d(LogLevel.Debug, "Logout successful");
+                // Clear cookies after successful logout
+                _cookieContainer = new CookieContainer();
+                if (!string.IsNullOrEmpty(_baseAddress))
+                {
+                    var handler = new HttpClientHandler() { CookieContainer = _cookieContainer };
+                    _httpClient = new HttpClient(handler) { BaseAddress = new Uri(_baseAddress) };
+                }
+                DBg.d(LogLevel.Trace, "RETURN (true)");
+                return true;
+            }
+            else
+            {
+                var error = await response.Content.ReadAsStringAsync();
+                DBg.d(LogLevel.Debug, $"Logout error: {error}");
+            }
+        }
+        catch (Exception ex)
+        {
+            DBg.d(LogLevel.Error, $"Error during logout: {ex.Message}");
         }
         DBg.d(LogLevel.Trace, "RETURN (false)");
         return false;

@@ -20,7 +20,6 @@
                 <TrayIcon.Menu>
                     <NativeMenu>
                         <NativeMenuItem Header="Toggle Window" />
-                        <NativeMenuItem Header="Settings" />
                         <NativeMenuItemSeparator />
                         <NativeMenuItem Header="Exit" />
                     </NativeMenu>

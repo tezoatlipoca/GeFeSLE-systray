@@ -14,15 +14,15 @@ namespace GeFeSLE.Controls
 {
     public class RichHtmlControl : UserControl
     {
-        public static readonly StyledProperty<string> HtmlContentProperty =
-            AvaloniaProperty.Register<RichHtmlControl, string>(nameof(HtmlContent), string.Empty);
+        public static readonly StyledProperty<string?> HtmlContentProperty =
+            AvaloniaProperty.Register<RichHtmlControl, string?>(nameof(HtmlContent), string.Empty);
 
         private StackPanel? _contentPanel;
         
         // Static reference to image cache service - set by the application
         public static ImageCacheService? ImageCache { get; set; }
 
-        public string HtmlContent
+        public string? HtmlContent
         {
             get => GetValue(HtmlContentProperty);
             set 

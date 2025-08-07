@@ -29,6 +29,7 @@ public class AppSettings
     
     // UI settings
     public bool MetadataPanelExpanded { get; set; } = false;
+    public bool ConfirmItemDeletion { get; set; } = true;
     
     // Search settings per list (key: listId, value: search terms)
     public Dictionary<int, ListSearchSettings> ListSearchSettings { get; set; } = new Dictionary<int, ListSearchSettings>();

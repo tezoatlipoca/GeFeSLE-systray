@@ -18,12 +18,14 @@ namespace GeFeSLE;
 public partial class App : Application
 {
     private MainWindow? _mainWindow;
+    private MainWindowViewModel? _mainWindowViewModel;
     private TrayIcon? _trayIcon;
     private SettingsService? _settingsService;
     private GeFeSLEApiClient? _apiClient;
     private HotkeyService? _hotkeyService;
     private UnixSignalService? _signalService;
     private ImageCacheService? _imageCacheService;
+    private SessionHeartbeatService? _heartbeatService;
     // SettingsWindow removed; now part of MainWindow as tab
 
     public override void Initialize()
@@ -33,7 +35,8 @@ public partial class App : Application
         _apiClient = new GeFeSLEApiClient(new System.Net.Http.HttpClient());
         _hotkeyService = new HotkeyService(_settingsService);
         _signalService = new UnixSignalService();
-        _imageCacheService = new ImageCacheService();
+        _imageCacheService = new ImageCacheService(_apiClient.GetAuthenticatedHttpClient());
+        _heartbeatService = new SessionHeartbeatService(_apiClient, _settingsService);
         
         // Set the static reference for RichHtmlControl to use
         RichHtmlControl.ImageCache = _imageCacheService;
@@ -47,13 +50,14 @@ public partial class App : Application
             // More info: https://docs.avaloniaui.net/docs/guides/development-guides/data-validation#manage-validationplugins
             DisableAvaloniaDataAnnotationValidation();
             
-            if (_settingsService == null || _apiClient == null || _hotkeyService == null || _signalService == null || _imageCacheService == null)
+            if (_settingsService == null || _apiClient == null || _hotkeyService == null || _signalService == null || _imageCacheService == null || _heartbeatService == null)
                 throw new InvalidOperationException("Services not initialized");
             
             // Set the static reference for RichHtmlControl to use
             GeFeSLE.Controls.RichHtmlControl.ImageCache = _imageCacheService;
             
-            _mainWindow = new MainWindow(new MainWindowViewModel(_settingsService, _apiClient, _hotkeyService, _imageCacheService), _settingsService, _hotkeyService)
+            _mainWindowViewModel = new MainWindowViewModel(_settingsService, _apiClient, _hotkeyService, _imageCacheService, _heartbeatService);
+            _mainWindow = new MainWindow(_mainWindowViewModel, _settingsService, _hotkeyService)
             {
                 WindowStartupLocation = WindowStartupLocation.Manual, // We'll handle positioning ourselves
                 ShowInTaskbar = true
@@ -87,6 +91,15 @@ public partial class App : Application
         if (_trayIcon != null)
         {
             _trayIcon.Clicked += TrayIcon_Clicked;
+            
+            // Additional handling for Linux - also handle double-click if available
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            {
+                // On some Linux desktop environments, double-click might work better
+                // This ensures we catch both single and double clicks
+                DBg.d(LogLevel.Debug, "Setting up additional Linux tray icon handling");
+            }
+            
             if (_trayIcon.Menu?.Items != null)
             {
                 foreach (var item in _trayIcon.Menu.Items.OfType<NativeMenuItem>())
@@ -95,9 +108,6 @@ public partial class App : Application
                     {
                         case "Toggle Window":
                             item.Click += ToggleMainWindowFromMenu;
-                            break;
-                        case "Settings":
-                            item.Click += ShowSettingsTab;
                             break;
                         case "Exit":
                             item.Click += ExitApplication;
@@ -110,18 +120,19 @@ public partial class App : Application
 
     private void TrayIcon_Clicked(object? sender, EventArgs e)
     {
-        DBg.d(LogLevel.Debug, "Tray icon clicked - toggling main window");
-        ToggleMainWindow();
-    }
-
-    private void ShowMainWindow(object? sender, EventArgs e)
-    {
-        DBg.d(LogLevel.Debug, "Show main window from menu");
-        if (_mainWindow != null)
+        DBg.d(LogLevel.Debug, $"Tray icon clicked - Platform: {RuntimeInformation.OSDescription}");
+        
+        // On Linux, we need to handle tray icon clicks more explicitly
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
         {
-            _mainWindow.Show();
-            _mainWindow.WindowState = WindowState.Normal;
-            _mainWindow.Activate();
+            DBg.d(LogLevel.Debug, "Linux tray icon click - explicitly toggling main window");
+            // Ensure we use Dispatcher.UIThread for UI operations on Linux
+            Avalonia.Threading.Dispatcher.UIThread.Post(() => ToggleMainWindow());
+        }
+        else
+        {
+            DBg.d(LogLevel.Debug, "Windows/Other platform tray icon click - toggling main window");
+            ToggleMainWindow();
         }
     }
 
@@ -129,22 +140,6 @@ public partial class App : Application
     {
         DBg.d(LogLevel.Debug, "Toggle main window from menu");
         ToggleMainWindow();
-    }
-
-    private void ShowSettingsTab(object? sender, EventArgs e)
-    {
-        DBg.d(LogLevel.Debug, "Show settings tab from menu");
-        if (_mainWindow != null)
-        {
-            // Show the window first
-            _mainWindow.Show();
-            _mainWindow.WindowState = WindowState.Normal;
-            _mainWindow.Activate();
-            _mainWindow.Focus();
-            
-            // TODO: Switch to Settings tab if we have access to the tab control
-            // For now, just showing the window is sufficient since Settings is a tab
-        }
     }
 
     private void ToggleMainWindow()
@@ -177,7 +172,9 @@ public partial class App : Application
         // Persist configuration before exit
         PersistConfigurationOnShutdown();
         
-        // Clean up signal handling
+        // Clean up services
+        _mainWindowViewModel?.Dispose();
+        _heartbeatService?.Dispose();
         _signalService?.StopListening();
         
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
