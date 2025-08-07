@@ -12,7 +12,7 @@ Download and run the Windows installer:
 
 ```bash
 # Using curl (Windows 10/11 with curl built-in)
-curl -L -o GeFeSLE-systray-setup.exe "https://github.com/tezoatlipoca/GeFeSLE-systray/releases/download/v0.1.0/GeFeSLE-systray_0.1.0_win-x64.setup.exe"
+curl -L -o GeFeSLE-systray-setup.exe "https://github.com/tezoatlipoca/GeFeSLE-systray/releases/download/v0.1.1/GeFeSLE-systray_0.1.1_win-x64.setup.exe"
 
 # Then run the installer
 GeFeSLE-systray-setup.exe
@@ -23,7 +23,7 @@ Download the portable ZIP archive:
 
 ```bash
 # Using curl
-curl -L -o GeFeSLE-systray-win64.zip "https://github.com/tezoatlipoca/GeFeSLE-systray/releases/download/v0.1.0/GeFeSLE-systray_0.1.0_win-x64.zip"
+curl -L -o GeFeSLE-systray-win64.zip "https://github.com/tezoatlipoca/GeFeSLE-systray/releases/download/v0.1.1/GeFeSLE-systray_0.1.1_win-x64.zip"
 
 # Extract the ZIP file to your preferred location
 # To add to PATH:
@@ -45,7 +45,7 @@ For Debian, Ubuntu, and other Debian-based distributions:
 
 ```bash
 # Download the .deb package
-curl -L -o gefesle-systray.deb "https://github.com/tezoatlipoca/GeFeSLE-systray/releases/download/v0.1.0/GeFeSLE-systray_0.1.0_linux_x64.deb"
+curl -L -o gefesle-systray.deb "https://github.com/tezoatlipoca/GeFeSLE-systray/releases/download/v0.1.1/GeFeSLE-systray_0.1.1_linux_x64.deb"
 
 # Install using dpkg (installs to /usr/local/bin)
 sudo dpkg -i gefesle-systray.deb
@@ -61,7 +61,7 @@ For Red Hat, CentOS, Fedora, and other RPM-based distributions:
 
 ```bash
 # Download the .rpm package
-curl -L -o gefesle-systray.rpm "https://github.com/tezoatlipoca/GeFeSLE-systray/releases/download/v0.1.0/GeFeSLE-systray_0.1.0_linux_x64.rpm"
+curl -L -o gefesle-systray.rpm "https://github.com/tezoatlipoca/GeFeSLE-systray/releases/download/v0.1.1/GeFeSLE-systray_0.1.1_linux_x64.rpm"
 
 # Install using rpm (CentOS/RHEL) - installs to /usr/local/bin
 sudo rpm -i gefesle-systray.rpm
@@ -80,7 +80,7 @@ Download the tar.gz archive for manual installation:
 
 ```bash
 # Download the archive
-curl -L -o gefesle-systray-linux.tar.gz "https://github.com/tezoatlipoca/GeFeSLE-systray/releases/download/v0.1.0/GeFeSLE-systray_0.1.0_linux_x64.tar.gz"
+curl -L -o gefesle-systray-linux.tar.gz "https://github.com/tezoatlipoca/GeFeSLE-systray/releases/download/v0.1.1/GeFeSLE-systray_0.1.1_linux_x64.tar.gz"
 
 # Extract to a local directory
 tar -xzf gefesle-systray-linux.tar.gz
