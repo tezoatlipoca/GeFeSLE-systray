@@ -19,7 +19,12 @@
   <assembly fullname="GeFeSLE-systray" preserve="all" />
   
   <!-- Preserve System.Text.Json for settings serialization -->
+  <assembly fullname="System.Text.Json" preserve="all" />
   <type fullname="System.Text.Json.*" preserve="all" />
+  
+  <!-- Preserve reflection capabilities needed for JSON serialization -->
+  <assembly fullname="System.Reflection" preserve="all" />
+  <assembly fullname="System.Runtime" preserve="all" />
   
   <!-- Preserve HTTP client functionality -->
   <type fullname="System.Net.Http.*" preserve="all" />
