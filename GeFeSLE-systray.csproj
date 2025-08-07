@@ -20,9 +20,8 @@
     <PublishSingleFile>true</PublishSingleFile>
     <PublishSelfContained>true</PublishSelfContained>
     <SelfContained>true</SelfContained>
-    <PublishTrimmed>true</PublishTrimmed>
+    <PublishTrimmed>false</PublishTrimmed>
     <PublishReadyToRun>false</PublishReadyToRun>
-    <TrimMode>copyused</TrimMode>
     <RuntimeIdentifiers>win-x64;linux-x64</RuntimeIdentifiers>
     
     <!-- Size optimizations -->
@@ -35,9 +34,6 @@
     <UseSystemResourceKeys>true</UseSystemResourceKeys>
     <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
     <IncludeAllContentForSelfExtract>true</IncludeAllContentForSelfExtract>
-    
-    <!-- Avalonia trimming support -->
-    <TrimmableAssembly>true</TrimmableAssembly>
   </PropertyGroup>
 
   <ItemGroup>
