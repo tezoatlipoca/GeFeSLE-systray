@@ -230,7 +230,7 @@
                 
                 <!-- Text Search -->
                 <TextBox Text="{Binding TextSearchQuery}" 
-                         Watermark="Search in item names and comments..."
+                         PlaceholderText="Search in item names and comments..."
                          Classes="search"
                          FontSize="12"
                          Padding="8,6"
@@ -240,7 +240,7 @@
                 
                 <!-- Tags Search -->
                 <TextBox Text="{Binding TagsSearchQuery}" 
-                         Watermark="Search for tags..."
+                         PlaceholderText="Search for tags..."
                          Classes="search"
                          FontSize="12"
                          Padding="8,6"
@@ -542,7 +542,7 @@
                             <!-- Server Configuration -->
                             <StackPanel Spacing="8">
                                 <TextBlock Text="Server URL:" FontWeight="Bold" Foreground="White"/>
-                                <TextBox Text="{Binding SettingsViewModel.ServerUrl}" Watermark="http://localhost:5000"/>
+                                <TextBox Text="{Binding SettingsViewModel.ServerUrl}" PlaceholderText="http://localhost:5000"/>
                             </StackPanel>
                             
                             <!-- Authentication -->
@@ -716,7 +716,7 @@
                                          AcceptsReturn="false"
                                          TextWrapping="Wrap"
                                          MinHeight="30"
-                                         Watermark="Example: urgent &quot;bug fix&quot; frontend"/>
+                                         PlaceholderText="Example: urgent &quot;bug fix&quot; frontend"/>
                             </StackPanel>
                         </StackPanel>
                     </ScrollViewer>

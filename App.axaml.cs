@@ -1,7 +1,5 @@
 using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
-using Avalonia.Data.Core;
-using Avalonia.Data.Core.Plugins;
 using System.Linq;
 using Avalonia.Markup.Xaml;
 using GeFeSLE.ViewModels;
@@ -46,10 +44,6 @@ public partial class App : Application
     {
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
-            // Avoid duplicate validations from both Avalonia and the CommunityToolkit. 
-            // More info: https://docs.avaloniaui.net/docs/guides/development-guides/data-validation#manage-validationplugins
-            DisableAvaloniaDataAnnotationValidation();
-            
             if (_settingsService == null || _apiClient == null || _hotkeyService == null || _signalService == null || _imageCacheService == null || _heartbeatService == null)
                 throw new InvalidOperationException("Services not initialized");
             
@@ -90,6 +84,7 @@ public partial class App : Application
         _trayIcon = TrayIcon.GetIcons(this)?.FirstOrDefault();
         if (_trayIcon != null)
         {
+            _trayIcon.ToolTipText = AppMetadata.WindowTitlePrefix;
             _trayIcon.Clicked += TrayIcon_Clicked;
             
             // Additional handling for Linux - also handle double-click if available
@@ -150,6 +145,7 @@ public partial class App : Application
             if (_mainWindow.IsVisible)
             {
                 DBg.d(LogLevel.Debug, "Window is visible - hiding it");
+                _mainWindow.PrepareForHide();
                 _mainWindow.Hide();
             }
             else
@@ -193,6 +189,7 @@ public partial class App : Application
         // Hide the window instead of closing it
         if (_mainWindow != null)
         {
+            _mainWindow.PrepareForHide();
             _mainWindow.Hide();
         }
     }
@@ -266,16 +263,4 @@ public partial class App : Application
         DBg.d(LogLevel.Trace, "RETURN PersistConfigurationOnShutdown");
     }
 
-    private void DisableAvaloniaDataAnnotationValidation()
-    {
-        // Get an array of plugins to remove
-        var dataValidationPluginsToRemove =
-            BindingPlugins.DataValidators.OfType<DataAnnotationsValidationPlugin>().ToArray();
-
-        // remove each entry found
-        foreach (var plugin in dataValidationPluginsToRemove)
-        {
-            BindingPlugins.DataValidators.Remove(plugin);
-        }
-    }
 }

@@ -96,7 +96,7 @@ public partial class MainWindowViewModel : ViewModelBase
     
     // Window title with memory usage
     [ObservableProperty]
-    private string windowTitle = "GeFeSLE";
+    private string windowTitle = AppMetadata.WindowTitlePrefix;
     
     // Memory monitoring timer
     private Timer? _memoryTimer;
@@ -200,12 +200,12 @@ public partial class MainWindowViewModel : ViewModelBase
             try
             {
                 var memoryUsage = DBg.GetMemoryUsage();
-                WindowTitle = $"GeFeSLE - RAM: {memoryUsage}";
+                WindowTitle = $"{AppMetadata.WindowTitlePrefix} - RAM: {memoryUsage}";
             }
             catch (Exception ex)
             {
                 DBg.d(LogLevel.Warning, $"Failed to update memory usage in title: {ex.Message}");
-                WindowTitle = "GeFeSLE";
+                WindowTitle = AppMetadata.WindowTitlePrefix;
             }
         });
     }
@@ -873,7 +873,8 @@ public partial class MainWindowViewModel : ViewModelBase
             try
             {
                 string serverUrl = _settingsService.Settings.ServerUrl.TrimEnd('/');
-                string listUrl = $"{serverUrl}/lists/{list.Id}";
+                list.MakeSlug();
+                string listUrl = $"{serverUrl}/{list.Slug}.html";
                 
                 System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
                 {
@@ -893,6 +894,29 @@ public partial class MainWindowViewModel : ViewModelBase
         {
             ShowNotification("Server URL not configured", "Orange");
         }
+    }
+
+    private static string ToListSlug(string value)
+    {
+        var slug = value.Trim().ToLowerInvariant();
+        var builder = new System.Text.StringBuilder(slug.Length);
+        bool previousWasSeparator = false;
+
+        foreach (var character in slug)
+        {
+            if (char.IsLetterOrDigit(character))
+            {
+                builder.Append(character);
+                previousWasSeparator = false;
+            }
+            else if (!previousWasSeparator)
+            {
+                builder.Append('-');
+                previousWasSeparator = true;
+            }
+        }
+
+        return builder.ToString().Trim('-');
     }
     
     // Helper methods for tag parsing and validation

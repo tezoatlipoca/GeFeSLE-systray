@@ -17,11 +17,65 @@ public class GeFeSLEApiClient
     private readonly JsonSerializerOptions _jsonOptions;
     private string? _baseAddress;
 
+    private static void ConfigureClientDefaults(HttpClient client)
+    {
+        if (client.DefaultRequestHeaders.Contains("User-Agent"))
+        {
+            client.DefaultRequestHeaders.Remove("User-Agent");
+        }
+
+        client.DefaultRequestHeaders.TryAddWithoutValidation("User-Agent", AppMetadata.UserAgent);
+    }
+
+    private static GeList MapList(GeListResponseDto dto)
+    {
+        return new GeList
+        {
+            Id = dto.Id,
+            Name = dto.Name,
+            Comment = dto.Comment,
+            Visibility = dto.Visibility,
+            CreatedDate = dto.CreatedDate,
+            ModifiedDate = dto.ModifiedDate,
+            CreatedBy = dto.CreatorName ?? dto.CreatorId
+        };
+    }
+
+    private static GeListItem MapItem(GeListItemResponseDto dto)
+    {
+        return new GeListItem
+        {
+            Id = dto.Id,
+            ListId = dto.ListId,
+            Name = dto.Name,
+            Comment = dto.Comment,
+            IsComplete = dto.IsComplete,
+            Visible = dto.Visible,
+            Tags = dto.Tags ?? new List<string>(),
+            CreatedDate = dto.CreatedDate,
+            ModifiedDate = dto.ModifiedDate
+        };
+    }
+
+    private static GeListItemCreateUpdateDto MapItemRequest(GeListItem item, int listId)
+    {
+        return new GeListItemCreateUpdateDto
+        {
+            ListId = listId,
+            Name = item.Name,
+            Comment = item.Comment,
+            IsComplete = item.IsComplete,
+            Visible = item.Visible,
+            Tags = item.Tags ?? new List<string>()
+        };
+    }
+
     public GeFeSLEApiClient(HttpClient httpClient)
     {
         DBg.d(LogLevel.Trace, "ENTER");
         _cookieContainer = new CookieContainer();
         _httpClient = httpClient;
+        ConfigureClientDefaults(_httpClient);
         _baseAddress = httpClient.BaseAddress?.ToString();
         _jsonOptions = new JsonSerializerOptions
         {
@@ -39,6 +93,7 @@ public class GeFeSLEApiClient
             _baseAddress = baseUrl;
             var handler = new HttpClientHandler() { CookieContainer = _cookieContainer };
             _httpClient = new HttpClient(handler) { BaseAddress = new Uri(baseUrl) };
+            ConfigureClientDefaults(_httpClient);
         }
         DBg.d(LogLevel.Trace, "RETURN");
     }
@@ -91,6 +146,7 @@ public class GeFeSLEApiClient
         var handler = new HttpClientHandler() { CookieContainer = _cookieContainer };
         var client = new HttpClient(handler);
         client.Timeout = TimeSpan.FromSeconds(10);
+        ConfigureClientDefaults(client);
         if (!string.IsNullOrEmpty(_baseAddress))
         {
             client.BaseAddress = new Uri(_baseAddress);
@@ -224,8 +280,8 @@ public class GeFeSLEApiClient
             {
                 var json = await response.Content.ReadAsStringAsync();
                 DBg.d(LogLevel.Debug, $"Response Body: {json}");
-                //DBg.d(LogLevel.Trace, "RETURN (success)");
-                return JsonSerializer.Deserialize<List<GeList>>(json, _jsonOptions);
+                var listDtos = JsonSerializer.Deserialize<List<GeListResponseDto>>(json, _jsonOptions);
+                return listDtos?.Select(MapList).ToList();
             }
             else
             {
@@ -246,16 +302,17 @@ public class GeFeSLEApiClient
         DBg.d(LogLevel.Trace, "ENTER");
         try
         {
-            var request = new HttpRequestMessage(HttpMethod.Get, $"/showitems/{listId}");
+            var request = new HttpRequestMessage(HttpMethod.Get, $"/lists/{listId}/items");
             request.Headers.Add("GeFeSLE-XMLHttpRequest", "true");
-            DBg.d(LogLevel.Debug, $"GET /showitems/{listId}");
+            DBg.d(LogLevel.Debug, $"GET /lists/{listId}/items");
             var response = await _httpClient.SendAsync(request);
             DBg.d(LogLevel.Debug, $"Response: {(int)response.StatusCode} {response.StatusCode}");
             if (response.IsSuccessStatusCode)
             {
                 var json = await response.Content.ReadAsStringAsync();
                 DBg.d(LogLevel.Debug, $"Response Body: {json}");
-                return JsonSerializer.Deserialize<List<GeListItem>>(json, _jsonOptions);
+                var itemDtos = JsonSerializer.Deserialize<List<GeListItemResponseDto>>(json, _jsonOptions);
+                return itemDtos?.Select(MapItem).ToList();
             }
             else
             {
@@ -276,13 +333,14 @@ public class GeFeSLEApiClient
         DBg.d(LogLevel.Trace, "ENTER");
         try
         {
-            var json = JsonSerializer.Serialize(item, _jsonOptions);
+            var requestDto = MapItemRequest(item, item.ListId);
+            var json = JsonSerializer.Serialize(requestDto, _jsonOptions);
             var content = new StringContent(json, Encoding.UTF8, "application/json");
             
-            var request = new HttpRequestMessage(HttpMethod.Put, "/modifyitem") { Content = content };
+            var request = new HttpRequestMessage(HttpMethod.Put, $"/items/{item.Id}") { Content = content };
             request.Headers.Add("GeFeSLE-XMLHttpRequest", "true");
             
-            DBg.d(LogLevel.Debug, "PUT /modifyitem");
+            DBg.d(LogLevel.Debug, $"PUT /items/{item.Id}");
             DBg.d(LogLevel.Debug, $"Request Body: {json}");
             
             var response = await _httpClient.SendAsync(request);
@@ -314,13 +372,15 @@ public class GeFeSLEApiClient
         DBg.d(LogLevel.Trace, "ENTER");
         try
         {
-            var json = JsonSerializer.Serialize(item, _jsonOptions);
+            item.ListId = listId;
+            var requestDto = MapItemRequest(item, listId);
+            var json = JsonSerializer.Serialize(requestDto, _jsonOptions);
             var content = new StringContent(json, Encoding.UTF8, "application/json");
             
-            var request = new HttpRequestMessage(HttpMethod.Post, $"/additem/{listId}") { Content = content };
+            var request = new HttpRequestMessage(HttpMethod.Post, "/items") { Content = content };
             request.Headers.Add("GeFeSLE-XMLHttpRequest", "true");
             
-            DBg.d(LogLevel.Debug, $"POST /additem/{listId}");
+            DBg.d(LogLevel.Debug, "POST /items");
             DBg.d(LogLevel.Debug, $"Request Body: {json}");
             
             var response = await _httpClient.SendAsync(request);
@@ -352,10 +412,10 @@ public class GeFeSLEApiClient
         DBg.d(LogLevel.Trace, "ENTER");
         try
         {
-            var request = new HttpRequestMessage(HttpMethod.Delete, $"/deleteitem/{listId}/{itemId}");
+            var request = new HttpRequestMessage(HttpMethod.Delete, $"/items/{itemId}");
             request.Headers.Add("GeFeSLE-XMLHttpRequest", "true");
             
-            DBg.d(LogLevel.Debug, $"DELETE /deleteitem/{listId}/{itemId}");
+            DBg.d(LogLevel.Debug, $"DELETE /items/{itemId}");
             
             var response = await _httpClient.SendAsync(request);
             DBg.d(LogLevel.Debug, $"Response: {(int)response.StatusCode} {response.StatusCode}");
@@ -386,13 +446,13 @@ public class GeFeSLEApiClient
         DBg.d(LogLevel.Trace, "ENTER");
         try
         {
-            var request = new HttpRequestMessage(HttpMethod.Post, "/moveitem");
+            var request = new HttpRequestMessage(HttpMethod.Patch, $"/items/{moveDto.itemid}/list");
             request.Headers.Add("GeFeSLE-XMLHttpRequest", "true");
             
-            var json = JsonSerializer.Serialize(moveDto, _jsonOptions);
+            var json = JsonSerializer.Serialize(new MoveItemRequestDto { listid = moveDto.listid }, _jsonOptions);
             request.Content = new StringContent(json, Encoding.UTF8, "application/json");
             
-            DBg.d(LogLevel.Debug, $"POST /moveitem with body: {json}");
+            DBg.d(LogLevel.Debug, $"PATCH /items/{moveDto.itemid}/list with body: {json}");
             
             var response = await _httpClient.SendAsync(request);
             DBg.d(LogLevel.Debug, $"Response: {(int)response.StatusCode} {response.StatusCode}");
@@ -438,6 +498,7 @@ public class GeFeSLEApiClient
                 {
                     var handler = new HttpClientHandler() { CookieContainer = _cookieContainer };
                     _httpClient = new HttpClient(handler) { BaseAddress = new Uri(_baseAddress) };
+                    ConfigureClientDefaults(_httpClient);
                 }
                 DBg.d(LogLevel.Trace, "RETURN (true)");
                 return true;

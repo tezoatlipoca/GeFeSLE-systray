@@ -166,6 +166,7 @@ public partial class MainWindow : Window
     {
         if (IsVisible)
         {
+            PrepareForHide();
             Hide();
         }
         else
@@ -173,6 +174,18 @@ public partial class MainWindow : Window
             Show();
             Activate();
             Focus();
+        }
+    }
+
+    public void PrepareForHide()
+    {
+        try
+        {
+            FocusManager?.Focus(null, NavigationMethod.Unspecified, KeyModifiers.None);
+        }
+        catch (Exception ex)
+        {
+            DBg.d(LogLevel.Warning, $"Failed to clear focus before hiding window: {ex.Message}");
         }
     }
 

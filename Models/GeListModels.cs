@@ -27,11 +27,24 @@ public class GeList
 {
     public int Id { get; set; }
     public string? Name { get; set; }
+    public string? Slug { get; set; }
     public string? Comment { get; set; }
     public GeListVisibility Visibility { get; set; } = GeListVisibility.Public;
     public string? CreatedBy { get; set; }
     public DateTime CreatedDate { get; set; } = DateTime.Now;
     public DateTime ModifiedDate { get; set; } = DateTime.Now;
+    // create Slug from Name if Slug is null or empty
+    public void MakeSlug()
+    {
+        if (string.IsNullOrEmpty(Slug) && !string.IsNullOrEmpty(Name))
+        {
+            // all the slug is is the Name but URLencoded
+            // because list urls will be {server}/{slug}.html
+            Slug = Uri.EscapeDataString(Name);
+        }
+    }
+
+    
 }
 
 public class GeListItem : INotifyPropertyChanged
