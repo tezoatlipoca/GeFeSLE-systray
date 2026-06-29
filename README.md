@@ -1,6 +1,10 @@
 # GeFeSLE-systray
 Generic, Federated, Subscribable List Engine - SysTray/Dock applet
 
+<img width="483" height="1001" alt="systray sample list" src="https://github.com/user-attachments/assets/ffe6c9ce-8abd-4242-a715-a3e39dcfa07e" />
+
+The _sample list in the screenshots above_ can be [**seen LIVE** on our flagship/test/sample site **HERE**](https://lists.awadwatt.com/Federation%20Test.html) or in **Mastodon** at `@federation.test@lists.awadwatt.com`
+
 ## Installation
 
 GeFeSLE-systray provides multiple installation options for different platforms. Choose the method that best suits your system:
